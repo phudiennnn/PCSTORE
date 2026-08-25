@@ -22,18 +22,22 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
-// 3. Tự động kiểm tra cập nhật bảng & Seed Data
+// ĐẶT UseCors NGAY ĐẦU TIÊN SAU KHI BUILD APP
+app.UseCors("AllowAll");
+
+// Khởi tạo Database
 using (var scope = app.Services.CreateScope())
 {
     var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
     try
     {
+        await context.Database.EnsureCreatedAsync();
         await context.Database.ExecuteSqlRawAsync(@"
             ALTER TABLE ""Users"" ADD COLUMN IF NOT EXISTS ""Address"" text;
             ALTER TABLE ""Users"" ADD COLUMN IF NOT EXISTS ""IsActive"" boolean DEFAULT true;
         ");
         await DbInitializer.SeedAsync(context);
-        Console.WriteLine("--> [DATABASE] Khởi tạo CSDL & Seed Data thành công!");
+        Console.WriteLine("--> [DATABASE] Seed Data hoàn tất!");
     }
     catch (Exception ex)
     {
@@ -41,8 +45,7 @@ using (var scope = app.Services.CreateScope())
     }
 }
 
-app.UseCors("AllowAll");
-
+// CÁC ENDPOINT API TIẾP THEO Ở PHÍA DƯỚI...
 // ==========================================================
 // 4. API AUTHENTICATION (Đăng ký / Đăng nhập / Đăng xuất)
 // ==========================================================
@@ -191,7 +194,56 @@ app.MapPut("/api/users/profile/{id:int}", async (AppDbContext context, int id, U
         return Results.Problem(detail: ex.InnerException?.Message ?? ex.Message, statusCode: 500);
     }
 });
+// ==========================================================
+// UC: SO SÁNH LINH KIỆN ĐA CHIỀU (SIDE-BY-SIDE COMPARISON)
+// ==========================================================
+app.MapGet("/api/products/compare", async (AppDbContext context, string ids) =>
+{
+    if (string.IsNullOrWhiteSpace(ids))
+        return Results.BadRequest(new { message = "Danh sách ID không hợp lệ." });
 
+    var idList = ids.Split(',', StringSplitOptions.RemoveEmptyEntries)
+                    .Select(id => int.TryParse(id.Trim(), out int val) ? val : 0)
+                    .Where(id => id > 0)
+                    .Distinct()
+                    .Take(4)
+                    .ToList();
+
+    if (!idList.Any())
+        return Results.BadRequest(new { message = "Không tìm thấy ID hợp lệ." });
+
+    var products = await context.Products
+        .Include(p => p.Category)
+        .Include(p => p.TechnicalSpec)
+        .AsNoTracking()
+        .Where(p => idList.Contains(p.Id))
+        .Select(p => new
+        {
+            id = p.Id,
+            name = p.Name,
+            sku = p.Sku,
+            brand = p.Brand,
+            price = p.Price,
+            stockQuantity = p.StockQuantity,
+            imageUrl = p.ImageUrl ?? "",
+            categoryType = p.Category.ComponentType.ToString(),
+            categoryName = p.Category.Name,
+            specs = p.TechnicalSpec != null ? new
+            {
+                socket = p.TechnicalSpec.Socket,
+                chipset = p.TechnicalSpec.Chipset,
+                ramType = p.TechnicalSpec.RamType,
+                ramSlots = p.TechnicalSpec.RamSlots,
+                ramBusSpeed = p.TechnicalSpec.RamBusSpeed,
+                tdpWattage = p.TechnicalSpec.TdpWattage,
+                recommendedPsu = p.TechnicalSpec.RecommendedPsu,
+                formFactor = p.TechnicalSpec.FormFactor
+            } : null
+        })
+        .ToListAsync();
+
+    return Results.Ok(products);
+});
 // Đổi mật khẩu
 app.MapPost("/api/users/change-password/{id:int}", async (AppDbContext context, int id, ChangePasswordDto dto) =>
 {

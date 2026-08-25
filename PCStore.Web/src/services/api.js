@@ -1,13 +1,14 @@
 import axios from 'axios';
 
-const API_BASE_URL = 'http://localhost:5170/api';
+// Dùng 127.0.0.1 thay cho localhost để tương thích tuyệt đối trên macOS
+const API_BASE_URL = 'http://127.0.0.1:5170/api';
 
 const apiClient = axios.create({
-    baseURL: API_BASE_URL,
-    headers: {
-        'Content-Type': 'application/json',
-    },
-    timeout: 10000,
+  baseURL: API_BASE_URL,
+  headers: {
+    'Content-Type': 'application/json',
+  },
+  timeout: 10000,
 });
 
 export const authService = {
