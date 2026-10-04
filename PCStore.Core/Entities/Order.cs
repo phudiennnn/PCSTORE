@@ -14,12 +14,15 @@ public class Order
     public string ShippingAddress { get; set; } = string.Empty;
     public string ReceiverPhone { get; set; } = string.Empty;
     public string ReceiverName { get; set; } = string.Empty;
+    public string? CustomerEmail { get; set; }
     public string PaymentMethod { get; set; } = "COD"; // COD, VNPAY, MoMo
     public bool IsPaid { get; set; } = false;
+    public bool InventoryReserved { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
     public int? UserId { get; set; }
     public User? User { get; set; }
 
     public ICollection<OrderDetail> OrderDetails { get; set; } = new List<OrderDetail>();
+    public ICollection<OrderStatusHistory> StatusHistory { get; set; } = new List<OrderStatusHistory>();
 }

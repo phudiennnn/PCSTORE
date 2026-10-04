@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { profileService } from '../services/api';
 
 export default function ProfileModal({ isOpen, onClose, currentUser, onUserUpdated }) {
@@ -22,16 +22,10 @@ export default function ProfileModal({ isOpen, onClose, currentUser, onUserUpdat
     confirmPassword: ''
   });
 
-  useEffect(() => {
-    if (isOpen && currentUser?.id) {
+  const loadProfileData = useCallback(async () => {
+    try {
       setAlert({ type: '', message: '' });
       setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
-      loadProfileData();
-    }
-  }, [isOpen, currentUser]);
-
-  const loadProfileData = async () => {
-    try {
       setFetching(true);
       const data = await profileService.getProfile(currentUser.id);
       setProfileForm({
@@ -50,7 +44,14 @@ export default function ProfileModal({ isOpen, onClose, currentUser, onUserUpdat
     } finally {
       setFetching(false);
     }
-  };
+  }, [currentUser]);
+
+  useEffect(() => {
+    if (isOpen && currentUser?.id) {
+      const run = async () => { await loadProfileData(); };
+      run();
+    }
+  }, [isOpen, currentUser, loadProfileData]);
 
   const handleUpdateInfo = async (e) => {
     e.preventDefault();

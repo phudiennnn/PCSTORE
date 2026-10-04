@@ -11,8 +11,12 @@ public class User
     public string? PhoneNumber { get; set; }
     public string? Address { get; set; }
     public bool IsActive { get; set; } = true;
+    public string? PasswordResetTokenHash { get; set; }
+    public DateTime? PasswordResetExpiresAt { get; set; }
+    public DateTime? PasswordResetRequestedAt { get; set; }
     public UserRole Role { get; set; } = UserRole.Customer;
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
     // Navigation properties
     public ICollection<PcBuild> PcBuilds { get; set; } = new List<PcBuild>();

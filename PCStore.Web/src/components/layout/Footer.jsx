@@ -1,4 +1,3 @@
-import React from 'react';
 import { Cpu, ShieldCheck, Truck, RotateCcw, Headphones } from 'lucide-react';
 
 export default function Footer() {

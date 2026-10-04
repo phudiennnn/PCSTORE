@@ -17,7 +17,10 @@ public class AppDbContext : DbContext
     public DbSet<PcBuildItem> PcBuildItems => Set<PcBuildItem>();
     public DbSet<Order> Orders => Set<Order>();
     public DbSet<OrderDetail> OrderDetails => Set<OrderDetail>();
+    public DbSet<OrderStatusHistory> OrderStatusHistories => Set<OrderStatusHistory>();
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
+    public DbSet<Review> Reviews => Set<Review>();
+    public DbSet<SystemSetting> SystemSettings => Set<SystemSetting>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -116,6 +119,49 @@ public class AppDbContext : DbContext
              .WithMany()
              .HasForeignKey(od => od.ProductId)
              .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<OrderStatusHistory>(b =>
+        {
+            b.HasKey(h => h.Id);
+            b.Property(h => h.Status).HasConversion<string>();
+            b.Property(h => h.TrackingNumber).HasMaxLength(100);
+            b.Property(h => h.Carrier).HasMaxLength(100);
+            b.Property(h => h.ChangedByName).HasMaxLength(150);
+            b.Property(h => h.Note).HasMaxLength(500);
+            b.HasIndex(h => new { h.OrderId, h.ChangedAt });
+            b.HasOne(h => h.Order)
+             .WithMany(o => o.StatusHistory)
+             .HasForeignKey(h => h.OrderId)
+             .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<Review>(b =>
+        {
+            b.HasKey(r => r.Id);
+            b.Property(r => r.Comment).HasMaxLength(1000);
+            b.HasIndex(r => new { r.UserId, r.ProductId })
+             .IsUnique()
+             .HasFilter("\"OrderId\" IS NOT NULL");
+            b.HasOne(r => r.Product)
+             .WithMany()
+             .HasForeignKey(r => r.ProductId)
+             .OnDelete(DeleteBehavior.Cascade);
+            b.HasOne(r => r.User)
+             .WithMany()
+             .HasForeignKey(r => r.UserId)
+             .OnDelete(DeleteBehavior.Cascade);
+            b.HasOne(r => r.Order)
+             .WithMany()
+             .HasForeignKey(r => r.OrderId)
+             .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<SystemSetting>(b =>
+        {
+            b.HasKey(s => s.Id);
+            b.HasIndex(s => s.Key).IsUnique();
+            b.Property(s => s.Key).IsRequired().HasMaxLength(100);
         });
     }
 }

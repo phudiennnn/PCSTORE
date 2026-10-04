@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   X, Loader2, AlertCircle, Cpu, Layers, Monitor, HardDrive, Zap, Box, Fan,
   Plus, ShoppingBag
@@ -25,13 +25,13 @@ export default function ProductDetailModal({ productId, isOpen, onClose, onSelec
   const [error, setError] = useState('');
 
   useEffect(() => {
-    if (!isOpen || !productId) {
-      setProduct(null);
-      setError('');
-      return;
-    }
+    const run = async () => {
+      if (!isOpen || !productId) {
+        setProduct(null);
+        setError('');
+        return;
+      }
 
-    const loadProduct = async () => {
       try {
         setLoading(true);
         setError('');
@@ -44,21 +44,33 @@ export default function ProductDetailModal({ productId, isOpen, onClose, onSelec
         setLoading(false);
       }
     };
-
-    loadProduct();
+    run();
   }, [isOpen, productId]);
 
   if (!isOpen) return null;
+
+  let additionalSpecs = {};
+  try {
+    additionalSpecs = JSON.parse(product?.additionalSpecsJson || '{}');
+  } catch {
+    additionalSpecs = {};
+  }
 
   const specItems = product ? [
     { label: 'Danh mục', value: product.categoryName },
     { label: 'SKU', value: product.sku },
     { label: 'Socket', value: product.socket },
+    { label: 'Số nhân', value: additionalSpecs.coreCount },
+    { label: 'Số luồng', value: additionalSpecs.threadCount },
+    { label: 'Xung cơ bản', value: additionalSpecs.baseClock },
+    { label: 'Xung tối đa', value: additionalSpecs.boostClock },
+    { label: 'Bộ nhớ đệm', value: additionalSpecs.cache },
     { label: 'Chipset', value: product.chipset },
     { label: 'Chuẩn RAM', value: product.ramType },
     { label: 'Bus RAM', value: product.ramBusSpeed ? `${product.ramBusSpeed} MHz` : null },
     { label: 'Khe RAM', value: product.ramSlots },
     { label: 'TDP', value: product.tdpWattage > 0 ? `${product.tdpWattage}W` : null },
+    { label: 'Giá gốc', value: additionalSpecs.regularPrice ? `${Number(additionalSpecs.regularPrice).toLocaleString('vi-VN')} đ` : null },
     { label: 'Nguồn khuyến nghị', value: product.recommendedPsu > 0 ? `${product.recommendedPsu}W` : null },
     { label: 'Form Factor', value: product.formFactor },
   ].filter(item => item.value !== null && item.value !== undefined && item.value !== '') : [];

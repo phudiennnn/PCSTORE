@@ -1,0 +1,30 @@
+@baseUrl = http://127.0.0.1:5170/api
+
+### List product reviews
+GET {{baseUrl}}/products/1/reviews
+
+### Get one review by ID
+GET {{baseUrl}}/products/1/reviews/1
+
+### Submit a review for a product in a completed order
+POST {{baseUrl}}/products/1/reviews
+Content-Type: application/json
+
+{
+  "userId": 1,
+  "orderId": 1,
+  "rating": 5,
+  "comment": "Sản phẩm hoạt động tốt, đóng gói cẩn thận.",
+  "imageUrl": null
+}
+
+### Rejected: a product must belong to the user's completed order
+POST {{baseUrl}}/products/1/reviews
+Content-Type: application/json
+
+{
+  "userId": 1,
+  "orderId": 999999,
+  "rating": 5,
+  "comment": "Đơn không tồn tại hoặc chưa giao thành công."
+}

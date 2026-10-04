@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { X, UserPlus, Mail, Lock, User, Phone, MapPin, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
+import { useState } from 'react';
+import { X, UserPlus, Mail, Lock, User, Phone, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
 import { authService } from '../../services/api';
 
 export default function RegisterModal({ isOpen, onClose, onRegisterSuccess }) {

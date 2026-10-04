@@ -7,5 +7,6 @@ public enum OrderStatus
     Shipping = 3,      // Đang giao hàng
     Completed = 4,     // Hoàn tất đơn
     Cancelled = 5,     // Đã hủy
-    Refunded = 6       // Đã hoàn tiền
+    Refunded = 6,      // Đã hoàn tiền
+    DeliveryFailed = 7 // Giao hàng thất bại
 }

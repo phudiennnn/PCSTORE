@@ -1,0 +1,118 @@
+
+@baseUrl = http://127.0.0.1:5170/api
+
+# Optional order confirmation email settings must be supplied outside source control:
+# Email__SmtpHost, Email__SmtpPort, Email__SmtpUsername, Email__SmtpPassword,
+# Email__FromAddress, Email__FromName, Email__SmtpEnableSsl
+
+### Create a COD order with free standard shipping
+POST {{baseUrl}}/orders
+Content-Type: application/json
+
+{
+  "userId": null,
+  "receiverName": "Nguyen Van A",
+  "receiverPhone": "0900000000",
+  "email": "customer@example.com",
+  "shippingAddress": "123 Nguyen Trai, Quan 1, TP. Ho Chi Minh",
+  "paymentMethod": "COD",
+  "items": [
+    {
+      "productId": 1,
+      "quantity": 1
+    }
+  ]
+}
+
+### Reject a non-COD payment method while online checkout is not enabled
+POST {{baseUrl}}/orders
+Content-Type: application/json
+
+{
+  "receiverName": "Nguyen Van A",
+  "receiverPhone": "0900000000",
+  "email": "customer@example.com",
+  "shippingAddress": "123 Nguyen Trai, Quan 1, TP. Ho Chi Minh",
+  "paymentMethod": "VNPAY",
+  "items": [
+    {
+      "productId": 1,
+      "quantity": 1
+    }
+  ]
+}
+
+### Get all orders for a signed-in customer
+GET {{baseUrl}}/orders/user/1
+
+### Get one customer order and its status timeline
+GET {{baseUrl}}/orders/user/1/1
+
+### Confirm a pending order (revalidates stock and notifies the customer)
+POST {{baseUrl}}/orders/1/confirm
+Content-Type: application/json
+
+{
+  "changedByName": "Nguyen Van B",
+  "note": "Đã kiểm tra thông tin đơn hàng."
+}
+
+### Confirming an order that is no longer pending returns 409 Conflict
+POST {{baseUrl}}/orders/1/confirm
+Content-Type: application/json
+
+{
+  "changedByName": "Nguyen Van B"
+}
+
+### Hand order to carrier (carrier and tracking number are mandatory)
+PUT {{baseUrl}}/orders/1/status
+Content-Type: application/json
+
+{
+  "status": "Shipping",
+  "carrier": "GHN",
+  "trackingNumber": "GHN-TRACK-0001",
+  "changedByName": "Nguyen Van B",
+  "note": "Đã bàn giao cho đơn vị vận chuyển."
+}
+
+### Update an order status and assign its tracking number
+PUT {{baseUrl}}/orders/1/status
+Content-Type: application/json
+
+{
+  "status": "Completed",
+  "changedByName": "Nguyen Van B",
+  "note": "Khách đã nhận đủ sản phẩm."
+}
+
+### Mark a delivery attempt failed (reserved stock is restored)
+PUT {{baseUrl}}/orders/1/status
+Content-Type: application/json
+
+{
+  "status": "DeliveryFailed",
+  "changedByName": "Nguyen Van B",
+  "note": "Khách hẹn giao lại."
+}
+
+### Reject skipping directly from Pending to Shipping
+PUT {{baseUrl}}/orders/1/status
+Content-Type: application/json
+
+{
+  "status": "Shipping",
+  "carrier": "GHN",
+  "trackingNumber": "GHN-TRACK-0002",
+  "changedByName": "Nguyen Van B"
+}
+
+### Reject hand-off without a carrier and tracking number
+PUT {{baseUrl}}/orders/1/status
+Content-Type: application/json
+
+{
+  "status": "Shipping",
+  "changedByName": "Nguyen Van B"
+}

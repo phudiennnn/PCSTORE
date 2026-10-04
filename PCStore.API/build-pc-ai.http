@@ -1,0 +1,20 @@
+@baseUrl = http://localhost:5170
+
+### Build a stocked PC within the 105% budget ceiling
+POST {{baseUrl}}/api/ai/build-recommendation
+Content-Type: application/json
+
+{
+  "budget": 25000000,
+  "purpose": "gaming",
+  "notes": "CPU AMD, main ASUS, RAM DDR4",
+  "categoryTypes": [
+    "CPU",
+    "Mainboard",
+    "RAM",
+    "GPU",
+    "SSD",
+    "PSU",
+    "Case"
+  ]
+}

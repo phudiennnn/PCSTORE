@@ -1,4 +1,3 @@
-import React from 'react';
 import { Cpu, ShoppingCart, Wrench, Search } from 'lucide-react';
 
 export default function Navbar({ activeTab, setActiveTab, cartCount = 0 }) {
