@@ -1,0 +1,121 @@
+.admin-workspace main [class~="bg-[#111a2e]"],
+.admin-workspace main [class~="bg-[#0c1424]"] {
+  background-color: #fff;
+}
+
+.admin-workspace main [class~="bg-cyan-950"],
+.admin-workspace main [class~="bg-indigo-950"],
+.admin-workspace main [class~="bg-slate-800"] {
+  background-color: #eff6ff;
+}
+
+.admin-workspace main [class~="bg-amber-950"],
+.admin-workspace main [class~="bg-amber-950/30"] {
+  background-color: #fffbeb;
+}
+
+.admin-workspace main [class~="bg-emerald-950"],
+.admin-workspace main [class~="bg-emerald-950/30"] {
+  background-color: #ecfdf5;
+}
+
+.admin-workspace main [class~="bg-rose-950"],
+.admin-workspace main [class~="bg-rose-950/30"] {
+  background-color: #fff1f2;
+}
+
+.admin-workspace main [class~="bg-violet-950"],
+.admin-workspace main [class~="bg-indigo-950/30"] {
+  background-color: #f5f3ff;
+}
+
+.admin-workspace main [class~="border-cyan-950"],
+.admin-workspace main [class~="border-cyan-900"],
+.admin-workspace main [class~="border-cyan-800"] {
+  border-color: #dbe4f0;
+}
+
+.admin-workspace main [class~="text-cyan-100"],
+.admin-workspace main [class~="text-cyan-200"],
+.admin-workspace main [class~="text-cyan-300"],
+.admin-workspace main [class~="text-cyan-400"] {
+  color: #1d4ed8;
+}
+
+.admin-workspace main [class~="text-slate-100"],
+.admin-workspace main [class~="text-slate-200"] {
+  color: #1e293b;
+}
+
+.admin-workspace main [class~="text-slate-300"] {
+  color: #334155;
+}
+
+.admin-workspace main [class~="text-slate-400"] {
+  color: #64748b;
+}
+
+.admin-workspace main [class~="text-amber-200"],
+.admin-workspace main [class~="text-amber-300"] {
+  color: #a16207;
+}
+
+.admin-workspace main [class~="text-emerald-200"],
+.admin-workspace main [class~="text-emerald-300"] {
+  color: #047857;
+}
+
+.admin-workspace main [class~="text-rose-200"],
+.admin-workspace main [class~="text-rose-300"] {
+  color: #be123c;
+}
+
+.admin-workspace main [class~="text-violet-200"],
+.admin-workspace main [class~="text-violet-300"] {
+  color: #6d28d9;
+}
+
+.admin-workspace main [class~="bg-cyan-400"] {
+  background-color: #2563eb;
+  color: #fff;
+}
+
+.admin-workspace main input:not([type="checkbox"]):not([type="radio"]),
+.admin-workspace main select,
+.admin-workspace main textarea {
+  border-color: #cbd5e1;
+  background-color: #fff;
+  color: #1e293b;
+}
+
+.admin-workspace main input::placeholder,
+.admin-workspace main textarea::placeholder {
+  color: #94a3b8;
+}
+
+.admin-workspace main input:focus,
+.admin-workspace main select:focus,
+.admin-workspace main textarea:focus {
+  border-color: #60a5fa;
+  outline: 2px solid rgb(96 165 250 / 18%);
+  outline-offset: 1px;
+}
+
+.admin-workspace main table {
+  border-color: #e2e8f0;
+}
+
+.admin-workspace main thead {
+  background-color: #f1f5f9;
+  color: #475569;
+}
+
+.admin-workspace main tbody tr {
+  border-color: #e2e8f0;
+}
+
+@media (max-width: 639px) {
+  .admin-workspace main table {
+    min-width: 640px;
+  }
+}

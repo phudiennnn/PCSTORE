@@ -49,12 +49,13 @@ export default function ProductDetailModal({ productId, isOpen, onClose, onSelec
 
   if (!isOpen) return null;
 
-  let additionalSpecs = {};
-  try {
-    additionalSpecs = JSON.parse(product?.additionalSpecsJson || '{}');
-  } catch {
-    additionalSpecs = {};
-  }
+  const additionalSpecs = (() => {
+    try {
+      return JSON.parse(product?.additionalSpecsJson || '{}');
+    } catch {
+      return {};
+    }
+  })();
 
   const specItems = product ? [
     { label: 'Danh mục', value: product.categoryName },
@@ -72,7 +73,11 @@ export default function ProductDetailModal({ productId, isOpen, onClose, onSelec
     { label: 'TDP', value: product.tdpWattage > 0 ? `${product.tdpWattage}W` : null },
     { label: 'Giá gốc', value: additionalSpecs.regularPrice ? `${Number(additionalSpecs.regularPrice).toLocaleString('vi-VN')} đ` : null },
     { label: 'Nguồn khuyến nghị', value: product.recommendedPsu > 0 ? `${product.recommendedPsu}W` : null },
+    { label: 'Chiều dài', value: product.lengthMm ? `${product.lengthMm} mm` : null },
     { label: 'Form Factor', value: product.formFactor },
+    ...Object.entries(additionalSpecs)
+      .filter(([key]) => !['coreCount', 'threadCount', 'baseClock', 'boostClock', 'cache', 'regularPrice'].includes(key))
+      .map(([key, value]) => ({ label: key, value: String(value) })),
   ].filter(item => item.value !== null && item.value !== undefined && item.value !== '') : [];
 
   return (
@@ -103,7 +108,7 @@ export default function ProductDetailModal({ productId, isOpen, onClose, onSelec
             <div className="space-y-6">
               <div className="flex flex-col sm:flex-row gap-5">
                 <div className="w-full sm:w-44 h-44 bg-slate-50 rounded-2xl border border-slate-100 flex items-center justify-center shrink-0">
-                  {product.imageUrl && product.imageUrl.startsWith('http') ? (
+                  {product.imageUrl ? (
                     <img src={product.imageUrl} alt={product.name} className="w-28 h-28 object-contain" />
                   ) : (
                     renderProductIcon(product.categoryType)
@@ -121,11 +126,19 @@ export default function ProductDetailModal({ productId, isOpen, onClose, onSelec
                   </div>
 
                   <h2 className="text-base font-black text-slate-900 leading-snug">{product.name}</h2>
+                  {product.description && <p className="text-xs leading-relaxed text-slate-600">{product.description}</p>}
 
                   <div className="flex items-end gap-3">
-                    <p className="text-xl font-black text-indigo-600">
-                      {product.price?.toLocaleString('vi-VN')} đ
-                    </p>
+                    <div>
+                      <p className="text-xl font-black text-indigo-600">
+                        {product.price?.toLocaleString('vi-VN')} đ
+                      </p>
+                      {product.listPrice > product.price && (
+                        <p className="text-xs text-slate-400 line-through">
+                          {product.listPrice.toLocaleString('vi-VN')} đ
+                        </p>
+                      )}
+                    </div>
                     <p className="text-xs text-slate-500 pb-0.5">
                       Kho: <strong className="text-slate-800">{product.stockQuantity || 0}</strong> chiếc
                     </p>

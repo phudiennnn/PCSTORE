@@ -11,5 +11,8 @@ public class AuditLog
     public string? PerformedBy { get; set; }    // Email người thực hiện
     public string? IpAddress { get; set; }
     public string? Details { get; set; }        // Dữ liệu payload/thay đổi
+    public string? PerformedByRole { get; set; }
+    public string? UserAgent { get; set; }
+    public string Status { get; set; } = "Success";
     public DateTime Timestamp { get; set; } = DateTime.UtcNow;
 }

@@ -11,6 +11,7 @@ public class AppDbContext : DbContext
 
     public DbSet<User> Users => Set<User>();
     public DbSet<Category> Categories => Set<Category>();
+    public DbSet<Brand> Brands => Set<Brand>();
     public DbSet<Product> Products => Set<Product>();
     public DbSet<TechnicalSpec> TechnicalSpecs => Set<TechnicalSpec>();
     public DbSet<PcBuild> PcBuilds => Set<PcBuild>();
@@ -18,9 +19,12 @@ public class AppDbContext : DbContext
     public DbSet<Order> Orders => Set<Order>();
     public DbSet<OrderDetail> OrderDetails => Set<OrderDetail>();
     public DbSet<OrderStatusHistory> OrderStatusHistories => Set<OrderStatusHistory>();
+    public DbSet<OrderActionRequest> OrderActionRequests => Set<OrderActionRequest>();
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
     public DbSet<Review> Reviews => Set<Review>();
     public DbSet<SystemSetting> SystemSettings => Set<SystemSetting>();
+    public DbSet<Voucher> Vouchers => Set<Voucher>();
+    public DbSet<RolePermission> RolePermissions => Set<RolePermission>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -36,12 +40,48 @@ public class AppDbContext : DbContext
             b.Property(u => u.Role).HasConversion<string>();
         });
 
+        modelBuilder.Entity<RolePermission>(b =>
+        {
+            b.HasKey(permission => permission.Id);
+            b.Property(permission => permission.Role).HasConversion<string>().HasMaxLength(20);
+            b.Property(permission => permission.Module).IsRequired().HasMaxLength(50);
+            b.Property(permission => permission.Action).IsRequired().HasMaxLength(20);
+            b.Property(permission => permission.UpdatedBy).HasMaxLength(150);
+            b.HasIndex(permission => new { permission.Role, permission.Module, permission.Action }).IsUnique();
+        });
+
+        modelBuilder.Entity<AuditLog>(b =>
+        {
+            b.Property(log => log.Action).HasMaxLength(100);
+            b.Property(log => log.Module).HasMaxLength(50);
+            b.Property(log => log.PerformedBy).HasMaxLength(150);
+            b.Property(log => log.PerformedByRole).HasMaxLength(20);
+            b.Property(log => log.IpAddress).HasMaxLength(64);
+            b.Property(log => log.UserAgent).HasMaxLength(1000);
+            b.Property(log => log.Status).IsRequired().HasMaxLength(20).HasDefaultValue("Success");
+            b.HasIndex(log => log.Timestamp);
+            b.HasIndex(log => new { log.Module, log.Action, log.Timestamp });
+        });
+
         // 2. Category
         modelBuilder.Entity<Category>(b =>
         {
             b.HasKey(c => c.Id);
             b.Property(c => c.Name).IsRequired().HasMaxLength(100);
+            b.Property(c => c.Slug).IsRequired().HasMaxLength(120);
             b.Property(c => c.ComponentType).HasConversion<string>();
+            b.HasIndex(c => c.Name).IsUnique();
+        });
+
+        modelBuilder.Entity<Brand>(b =>
+        {
+            b.HasKey(brand => brand.Id);
+            b.Property(brand => brand.Name).IsRequired().HasMaxLength(100);
+            b.Property(brand => brand.Slug).IsRequired().HasMaxLength(120);
+            b.Property(brand => brand.LogoUrl).HasMaxLength(500);
+            b.Property(brand => brand.Description).HasMaxLength(500);
+            b.HasIndex(brand => brand.Name).IsUnique();
+            b.HasIndex(brand => brand.Slug).IsUnique();
         });
 
         // 3. Product
@@ -50,7 +90,12 @@ public class AppDbContext : DbContext
             b.HasKey(p => p.Id);
             b.Property(p => p.Name).IsRequired().HasMaxLength(250);
             b.Property(p => p.Sku).IsRequired().HasMaxLength(100);
+            b.Property(p => p.Description).HasMaxLength(2000);
+            b.HasIndex(p => p.Sku).IsUnique();
             b.Property(p => p.Price).HasPrecision(18, 2);
+            b.Property(p => p.PromotionalPrice).HasPrecision(18, 2);
+            b.Property(p => p.LowStockThreshold).HasDefaultValue(5);
+            b.Property(p => p.WarehouseLocation).HasMaxLength(100);
 
             b.HasOne(p => p.Category)
              .WithMany(c => c.Products)
@@ -72,6 +117,7 @@ public class AppDbContext : DbContext
         modelBuilder.Entity<PcBuild>(b =>
         {
             b.HasKey(pb => pb.Id);
+            b.Property(pb => pb.Purpose).IsRequired().HasMaxLength(30).HasDefaultValue("general");
             b.Property(pb => pb.TotalPrice).HasPrecision(18, 2);
             b.HasOne(pb => pb.User)
              .WithMany(u => u.PcBuilds)
@@ -121,6 +167,17 @@ public class AppDbContext : DbContext
              .OnDelete(DeleteBehavior.Restrict);
         });
 
+        modelBuilder.Entity<Voucher>(b =>
+        {
+            b.HasKey(voucher => voucher.Id);
+            b.Property(voucher => voucher.Code).IsRequired().HasMaxLength(50);
+            b.Property(voucher => voucher.DiscountType).IsRequired().HasMaxLength(20);
+            b.Property(voucher => voucher.DiscountValue).HasPrecision(18, 2);
+            b.Property(voucher => voucher.MinimumOrderAmount).HasPrecision(18, 2);
+            b.Property(voucher => voucher.MaximumDiscountAmount).HasPrecision(18, 2);
+            b.HasIndex(voucher => voucher.Code).IsUnique();
+        });
+
         modelBuilder.Entity<OrderStatusHistory>(b =>
         {
             b.HasKey(h => h.Id);
@@ -134,6 +191,24 @@ public class AppDbContext : DbContext
              .WithMany(o => o.StatusHistory)
              .HasForeignKey(h => h.OrderId)
              .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<OrderActionRequest>(b =>
+        {
+            b.HasKey(request => request.Id);
+            b.Property(request => request.RequestType).IsRequired().HasMaxLength(20);
+            b.Property(request => request.Reason).IsRequired().HasMaxLength(500);
+            b.Property(request => request.Status).IsRequired().HasMaxLength(20);
+            b.Property(request => request.ReviewNote).HasMaxLength(500);
+            b.HasIndex(request => new { request.OrderId, request.Status });
+            b.HasOne(request => request.Order)
+                .WithMany(order => order.ActionRequests)
+                .HasForeignKey(request => request.OrderId)
+                .OnDelete(DeleteBehavior.Cascade);
+            b.HasOne(request => request.ReviewedByUser)
+                .WithMany()
+                .HasForeignKey(request => request.ReviewedByUserId)
+                .OnDelete(DeleteBehavior.SetNull);
         });
 
         modelBuilder.Entity<Review>(b =>

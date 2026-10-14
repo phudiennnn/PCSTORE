@@ -1,5 +1,8 @@
 
 @baseUrl = http://127.0.0.1:5170/api
+@staffAccessToken = paste-manager-or-admin-token-here
+@managerAccessToken = paste-manager-or-admin-token-here
+@customerAccessToken = paste-customer-token-here
 
 # Optional order confirmation email settings must be supplied outside source control:
 # Email__SmtpHost, Email__SmtpPort, Email__SmtpUsername, Email__SmtpPassword,
@@ -44,12 +47,248 @@ Content-Type: application/json
 
 ### Get all orders for a signed-in customer
 GET {{baseUrl}}/orders/user/1
+Authorization: Bearer {{customerAccessToken}}
+
+### Customer creates a cancellation request for their own eligible order
+POST {{baseUrl}}/orders/1/requests
+Authorization: Bearer {{customerAccessToken}}
+Content-Type: application/json
+
+{
+  "requestType": "Cancel",
+  "reason": "Tôi muốn thay đổi cấu hình trước khi giao."
+}
+
+### Customer checks their request status
+GET {{baseUrl}}/orders/1/requests/1
+Authorization: Bearer {{customerAccessToken}}
+
+### Customer creates a return/refund request for a completed order
+POST {{baseUrl}}/orders/2/requests
+Authorization: Bearer {{customerAccessToken}}
+Content-Type: application/json
+
+{
+  "requestType": "Refund",
+  "reason": "Linh kiện không phù hợp với cấu hình của tôi."
+}
+
+### Get requests waiting for Manager/Admin review
+GET {{baseUrl}}/admin/order-requests?status=Pending
+Authorization: Bearer {{managerAccessToken}}
+
+### Approve a cancellation or return request (Manager/Admin)
+POST {{baseUrl}}/admin/order-requests/1/review
+Authorization: Bearer {{managerAccessToken}}
+Content-Type: application/json
+
+{
+  "approve": true,
+  "note": "Đã phê duyệt theo yêu cầu; tồn kho đã được cập nhật."
+}
+
+### Reject a request (Manager/Admin)
+POST {{baseUrl}}/admin/order-requests/1/review
+Authorization: Bearer {{managerAccessToken}}
+Content-Type: application/json
+
+{
+  "approve": false,
+  "note": "Đơn hàng đã được bàn giao cho đơn vị vận chuyển."
+}
 
 ### Get one customer order and its status timeline
 GET {{baseUrl}}/orders/user/1/1
+Authorization: Bearer {{customerAccessToken}}
+
+### Manager/Admin order status filter
+GET {{baseUrl}}/orders?status=Confirmed
+Authorization: Bearer {{managerAccessToken}}
+
+### Sign in as an active Manager/Admin to receive an access token for customer lookup
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "manager@example.com",
+  "password": "replace-with-manager-password"
+}
+
+### Customer lookup requires Authorization: Bearer <accessToken> from the login response
+GET {{baseUrl}}/staff/customers?search=1234
+Authorization: Bearer {{staffAccessToken}}
+
+### Get customer order and saved PC-build history
+GET {{baseUrl}}/staff/customers/1
+Authorization: Bearer {{staffAccessToken}}
+
+### Check PC compatibility and get in-stock replacement suggestions (Staff/Manager/Admin)
+POST {{baseUrl}}/staff/compatibility-check
+Authorization: Bearer {{staffAccessToken}}
+Content-Type: application/json
+
+{
+  "productIds": [1, 2, 3, 4]
+}
+
+### Public active categories and brands used by storefront filters
+GET {{baseUrl}}/products/categories
+
+###
+GET {{baseUrl}}/products/brands
+
+### List categories for catalog management (Manager/Admin)
+GET {{baseUrl}}/admin/categories
+Authorization: Bearer {{managerAccessToken}}
+
+### Create a category (slug is generated from the name)
+POST {{baseUrl}}/admin/categories
+Authorization: Bearer {{managerAccessToken}}
+Content-Type: application/json
+
+{
+  "name": "Bo mạch chủ cao cấp",
+  "componentType": "Mainboard",
+  "description": "Danh mục bo mạch chủ",
+  "displayOrder": 10
+}
+
+### Update a category
+PUT {{baseUrl}}/admin/categories/1
+Authorization: Bearer {{managerAccessToken}}
+Content-Type: application/json
+
+{
+  "name": "Bo mạch chủ",
+  "componentType": "Mainboard",
+  "description": "Danh mục bo mạch chủ",
+  "displayOrder": 10
+}
+
+### Hide or reactivate a category (does not delete linked products)
+PATCH {{baseUrl}}/admin/categories/1/active
+Authorization: Bearer {{managerAccessToken}}
+Content-Type: application/json
+
+{
+  "isActive": false
+}
+
+### List brands for catalog management (Manager/Admin)
+GET {{baseUrl}}/admin/brands
+Authorization: Bearer {{managerAccessToken}}
+
+### Create a brand (slug is generated from the name)
+POST {{baseUrl}}/admin/brands
+Authorization: Bearer {{managerAccessToken}}
+Content-Type: application/json
+
+{
+  "name": "Example Brand",
+  "logoUrl": "https://example.com/logo.png",
+  "description": "Thương hiệu linh kiện",
+  "displayOrder": 10
+}
+
+### Update a brand
+PUT {{baseUrl}}/admin/brands/1
+Authorization: Bearer {{managerAccessToken}}
+Content-Type: application/json
+
+{
+  "name": "Example Brand",
+  "logoUrl": "https://example.com/logo.png",
+  "description": "Thương hiệu linh kiện",
+  "displayOrder": 10
+}
+
+### Hide or reactivate a brand (does not delete linked products)
+PATCH {{baseUrl}}/admin/brands/1/active
+Authorization: Bearer {{managerAccessToken}}
+Content-Type: application/json
+
+{
+  "isActive": false
+}
+
+### List all products, including hidden products, with technical specifications (Manager/Admin)
+GET {{baseUrl}}/admin/products
+Authorization: Bearer {{managerAccessToken}}
+
+### Create a CPU product with category-specific fields (Manager/Admin)
+POST {{baseUrl}}/admin/products
+Authorization: Bearer {{managerAccessToken}}
+Content-Type: application/json
+
+{
+  "name": "CPU Example",
+  "sku": "CPU-EXAMPLE-001",
+  "brand": "Example Brand",
+  "description": "Mô tả sản phẩm ngắn.",
+  "price": 4990000,
+  "stockQuantity": 10,
+  "categoryId": 1,
+  "socket": "AM5",
+  "tdpWattage": 65,
+  "additionalSpecs": {
+    "Số nhân": "6",
+    "Số luồng": "12"
+  }
+}
+
+### Update product fields, image data URL (max 5 MB), and category-specific specs (Manager/Admin)
+PUT {{baseUrl}}/admin/products/1
+Authorization: Bearer {{managerAccessToken}}
+Content-Type: application/json
+
+{
+  "name": "CPU Example Updated",
+  "sku": "CPU-EXAMPLE-001",
+  "brand": "Example Brand",
+  "description": "Nội dung mô tả đã cập nhật.",
+  "price": 4790000,
+  "stockQuantity": 8,
+  "categoryId": 1,
+  "imageUrl": null,
+  "socket": "AM5",
+  "tdpWattage": 65,
+  "additionalSpecs": {
+    "Số nhân": "6",
+    "Số luồng": "12"
+  }
+}
+
+### Hide or reactivate a product without deleting its history (Manager/Admin)
+PATCH {{baseUrl}}/admin/products/1/active
+Authorization: Bearer {{managerAccessToken}}
+Content-Type: application/json
+
+{
+  "isActive": false
+}
+
+### Save a PC configuration as its signed-in customer
+POST {{baseUrl}}/builds/user/1
+Authorization: Bearer {{customerAccessToken}}
+Content-Type: application/json
+
+{
+  "buildName": "BUILD PC AI",
+  "isCompatible": true,
+  "items": [
+    {
+      "productId": 1,
+      "quantity": 1
+    }
+  ]
+}
+
+### Public order lookup requires both the order code and recipient phone
+GET {{baseUrl}}/orders/lookup?orderCode=ORD-2026-0001&receiverPhone=0900000000
 
 ### Confirm a pending order (revalidates stock and notifies the customer)
 POST {{baseUrl}}/orders/1/confirm
+Authorization: Bearer {{staffAccessToken}}
 Content-Type: application/json
 
 {
@@ -59,6 +298,7 @@ Content-Type: application/json
 
 ### Confirming an order that is no longer pending returns 409 Conflict
 POST {{baseUrl}}/orders/1/confirm
+Authorization: Bearer {{staffAccessToken}}
 Content-Type: application/json
 
 {
@@ -67,6 +307,7 @@ Content-Type: application/json
 
 ### Hand order to carrier (carrier and tracking number are mandatory)
 PUT {{baseUrl}}/orders/1/status
+Authorization: Bearer {{staffAccessToken}}
 Content-Type: application/json
 
 {
@@ -79,6 +320,7 @@ Content-Type: application/json
 
 ### Update an order status and assign its tracking number
 PUT {{baseUrl}}/orders/1/status
+Authorization: Bearer {{staffAccessToken}}
 Content-Type: application/json
 
 {
@@ -89,6 +331,7 @@ Content-Type: application/json
 
 ### Mark a delivery attempt failed (reserved stock is restored)
 PUT {{baseUrl}}/orders/1/status
+Authorization: Bearer {{staffAccessToken}}
 Content-Type: application/json
 
 {
@@ -97,8 +340,70 @@ Content-Type: application/json
   "note": "Khách hẹn giao lại."
 }
 
+### Record printing a packing slip (only Confirmed or Shipping orders are allowed)
+POST {{baseUrl}}/orders/1/documents/print
+Content-Type: application/json
+
+{
+  "documentType": "packing-slip",
+  "changedByName": "Nguyen Van B"
+}
+
+### Record printing an invoice
+POST {{baseUrl}}/orders/1/documents/print
+Content-Type: application/json
+
+{
+  "documentType": "invoice",
+  "changedByName": "Nguyen Van B"
+}
+
+### Update a product's warehouse shelf location for packing slips
+PUT {{baseUrl}}/admin/products/1/warehouse-location
+Content-Type: application/json
+
+{
+  "warehouseLocation": "A-03-02"
+}
+
+### Filter inventory by SKU/name, category, and stock state (Manager/Admin)
+GET {{baseUrl}}/admin/inventory?searchTerm=CPU&categoryId=1&stockStatus=LowStock
+Authorization: ******
+
+### Receive a supplier delivery (Manager/Admin)
+POST {{baseUrl}}/admin/inventory/1/receive
+Authorization: ******
+Content-Type: application/json
+
+{
+  "quantity": 10,
+  "unitCost": 4500000,
+  "supplier": "Nha cung cap linh kien",
+  "note": "Nhap hang theo phieu giao 2026-001"
+}
+
+### Adjust physical stock after counting (Manager/Admin)
+POST {{baseUrl}}/admin/inventory/1/adjust
+Authorization: ******
+Content-Type: application/json
+
+{
+  "actualStock": 25,
+  "note": "Kiem ke kho dinh ky"
+}
+
+### Change the low-stock warning threshold (Manager/Admin)
+PATCH {{baseUrl}}/admin/inventory/1/threshold
+Authorization: ******
+Content-Type: application/json
+
+{
+  "threshold": 5
+}
+
 ### Reject skipping directly from Pending to Shipping
 PUT {{baseUrl}}/orders/1/status
+Authorization: Bearer {{staffAccessToken}}
 Content-Type: application/json
 
 {
@@ -110,9 +415,68 @@ Content-Type: application/json
 
 ### Reject hand-off without a carrier and tracking number
 PUT {{baseUrl}}/orders/1/status
+Authorization: Bearer {{staffAccessToken}}
 Content-Type: application/json
 
 {
   "status": "Shipping",
   "changedByName": "Nguyen Van B"
+}
+
+### Create a voucher (Manager/Admin)
+POST {{baseUrl}}/admin/vouchers
+Authorization: ******
+Content-Type: application/json
+
+{
+  "code": "PCSTORE10",
+  "discountType": "Percentage",
+  "discountValue": 10,
+  "minimumOrderAmount": 1000000,
+  "maximumDiscountAmount": 500000,
+  "usageLimit": 100,
+  "startsAt": "2026-01-01T00:00:00+07:00",
+  "endsAt": "2026-12-31T23:59:59+07:00"
+}
+
+### List vouchers (Manager/Admin)
+GET {{baseUrl}}/admin/vouchers
+Authorization: ******
+
+### Activate or deactivate a voucher (Manager/Admin)
+PATCH {{baseUrl}}/admin/vouchers/1/active
+Authorization: ******
+Content-Type: application/json
+
+{
+  "isActive": true
+}
+
+### Validate a voucher against the cart subtotal
+POST {{baseUrl}}/vouchers/validate
+Content-Type: application/json
+
+{
+  "code": "PCSTORE10",
+  "orderSubtotal": 5000000
+}
+
+### Create a COD order and redeem a voucher
+POST {{baseUrl}}/orders
+Content-Type: application/json
+
+{
+  "userId": null,
+  "receiverName": "Nguyen Van A",
+  "receiverPhone": "0900000000",
+  "email": "customer@example.com",
+  "shippingAddress": "123 Nguyen Trai, Quan 1, TP. Ho Chi Minh",
+  "paymentMethod": "COD",
+  "voucherCode": "PCSTORE10",
+  "items": [
+    {
+      "productId": 1,
+      "quantity": 1
+    }
+  ]
 }

@@ -10,6 +10,8 @@ public class Order
     public int Id { get; set; }
     public string OrderCode { get; set; } = string.Empty; // Mã đơn hàng (VD: ORD-2026-0001)
     public decimal TotalAmount { get; set; }
+    public string? VoucherCode { get; set; }
+    public decimal DiscountAmount { get; set; }
     public OrderStatus Status { get; set; } = OrderStatus.Pending;
     public string ShippingAddress { get; set; } = string.Empty;
     public string ReceiverPhone { get; set; } = string.Empty;
@@ -25,4 +27,5 @@ public class Order
 
     public ICollection<OrderDetail> OrderDetails { get; set; } = new List<OrderDetail>();
     public ICollection<OrderStatusHistory> StatusHistory { get; set; } = new List<OrderStatusHistory>();
+    public ICollection<OrderActionRequest> ActionRequests { get; set; } = new List<OrderActionRequest>();
 }

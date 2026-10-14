@@ -8,6 +8,7 @@ public class PcBuild
 {
     public int Id { get; set; }
     public string BuildName { get; set; } = "Cấu hình tùy chọn";
+    public string Purpose { get; set; } = "general";
     public decimal TotalPrice { get; set; }
     public int EstimatedWattage { get; set; }
     public bool IsCompatible { get; set; } = true;
@@ -18,4 +19,3 @@ public class PcBuild
 
     public ICollection<PcBuildItem> Items { get; set; } = new List<PcBuildItem>();
 }
-

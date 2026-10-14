@@ -74,6 +74,36 @@ public static class DbInitializer // <-- Bắt buộc phải có từ khóa 'pub
             await context.SaveChangesAsync();
         }
 
+        var recoveryAdministrator = await context.Users
+            .FirstOrDefaultAsync(user => user.Email.ToLower() == "admin@pcstore.vn");
+        if (recoveryAdministrator is not null
+            && (recoveryAdministrator.Role != UserRole.Admin || !recoveryAdministrator.IsActive))
+        {
+            var previousRole = recoveryAdministrator.Role;
+            var wasActive = recoveryAdministrator.IsActive;
+            recoveryAdministrator.Role = UserRole.Admin;
+            recoveryAdministrator.IsActive = true;
+            recoveryAdministrator.UpdatedAt = DateTime.UtcNow;
+            context.AuditLogs.Add(new AuditLog
+            {
+                Action = "RESTORE_RECOVERY_ADMIN",
+                Module = "ACCOUNTS",
+                PerformedBy = "system",
+                PerformedByRole = UserRole.Admin.ToString(),
+                Status = "Success",
+                Details = System.Text.Json.JsonSerializer.Serialize(new
+                {
+                    recoveryAdministrator.Email,
+                    previousRole = previousRole.ToString(),
+                    role = UserRole.Admin.ToString(),
+                    wasActive,
+                    isActive = true
+                }),
+                Timestamp = DateTime.UtcNow
+            });
+            await context.SaveChangesAsync();
+        }
+
         // 2. Seed Categories
         if (!await context.Categories.AnyAsync())
         {

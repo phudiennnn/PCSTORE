@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
-import { profileService } from '../services/api';
+import { authService } from '../services/api';
 
-export default function ProfileModal({ isOpen, onClose, currentUser, onUserUpdated }) {
-  const [activeTab, setActiveTab] = useState('info'); // 'info' | 'password'
+export default function ProfileModal({ isOpen, onClose, currentUser, onUserUpdated, initialTab = 'info' }) {
+  const [activeTab, setActiveTab] = useState(initialTab); // 'info' | 'password'
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(false);
   const [alert, setAlert] = useState({ type: '', message: '' });
@@ -27,7 +27,7 @@ export default function ProfileModal({ isOpen, onClose, currentUser, onUserUpdat
       setAlert({ type: '', message: '' });
       setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
       setFetching(true);
-      const data = await profileService.getProfile(currentUser.id);
+      const data = await authService.getProfile(currentUser.id);
       setProfileForm({
         fullName: data.fullName || '',
         email: data.email || '',
@@ -63,7 +63,7 @@ export default function ProfileModal({ isOpen, onClose, currentUser, onUserUpdat
     try {
       setLoading(true);
       setAlert({ type: '', message: '' });
-      const res = await profileService.updateProfile(currentUser.id, {
+      const res = await authService.updateProfile(currentUser.id, {
         fullName: profileForm.fullName,
         phoneNumber: profileForm.phoneNumber,
         address: profileForm.address
@@ -104,7 +104,7 @@ export default function ProfileModal({ isOpen, onClose, currentUser, onUserUpdat
     try {
       setLoading(true);
       setAlert({ type: '', message: '' });
-      const res = await profileService.changePassword(currentUser.id, {
+      const res = await authService.changePassword(currentUser.id, {
         currentPassword: passwordForm.currentPassword,
         newPassword: passwordForm.newPassword
       });
