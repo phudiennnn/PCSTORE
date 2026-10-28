@@ -1,5 +1,7 @@
 # PC Builder
 
+[![CI](https://github.com/phudiennnn/PCSTORE/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/phudiennnn/PCSTORE/actions/workflows/ci.yml)
+
 PC Builder is a React/Vite frontend with an ASP.NET Core API and PostgreSQL database.
 The API and frontend are available locally through Docker Compose.
 
