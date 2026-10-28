@@ -1,4 +1,4 @@
-name: CI - .NET Build
+name: CI
 
 on:
   push:
@@ -12,8 +12,8 @@ permissions:
   contents: read
 
 jobs:
-  build:
-    name: Restore and build
+  validate:
+    name: Build, test, and build container images
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -27,3 +27,20 @@ jobs:
 
       - name: Build
         run: dotnet build PCSTORE.slnx --configuration Release --no-restore
+
+      - name: Test
+        run: dotnet test PCSTORE.slnx --configuration Release --no-build --logger "trx;LogFileName=test-results.trx"
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: PCStore.Tests/TestResults/*.trx
+          if-no-files-found: warn
+
+      - name: Build API image
+        run: docker build --tag pcstore-api:${{ github.sha }} .
+
+      - name: Build frontend image
+        run: docker build --file PCStore.Web/Dockerfile --tag pcstore-web:${{ github.sha }} .
