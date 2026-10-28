@@ -91,7 +91,7 @@ Docker images. It does not publish images or deploy the application.
 
 ## Current validation notes
 
-- The xUnit suite currently contains 10 tests: 5 compatibility characterization
+- The xUnit suite currently contains 12 tests: 7 compatibility characterization
   cases and 5 support-ticket status normalization cases.
 - Local `dotnet list package --vulnerable --include-transitive` reports no
   vulnerable NuGet packages after updating `Microsoft.OpenApi`.

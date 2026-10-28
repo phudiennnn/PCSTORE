@@ -60,6 +60,18 @@ var issues = PcBuildCompatibilityChecker.Check(parts);
 Assert.Contains(issues, issue => issue.Code == "gpu-length");
 }
 
+[Fact(DisplayName = "FUNC-BD04: an ATX board does not fit an ITX-only case")]
+public void FuncBd04_IncompatibleCaseFormFactor_IsReported()
+{
+var parts = Build(
+    Part(ComponentType.Mainboard, new TechnicalSpec { FormFactor = "ATX" }),
+    Part(ComponentType.Case, new TechnicalSpec { FormFactor = "Mini-ITX" }));
+
+var issues = PcBuildCompatibilityChecker.Check(parts);
+
+Assert.Contains(issues, issue => issue.Code == "case-form-factor");
+}
+
 [Fact(DisplayName = "FUNC-BD04: missing case GPU limit skips the length check")]
 public void FuncBd04_MissingCaseGpuLimit_SkipsLengthCheck()
 {
@@ -70,6 +82,20 @@ Part(ComponentType.Case, new TechnicalSpec()));
 var issues = PcBuildCompatibilityChecker.Check(parts);
 
 Assert.DoesNotContain(issues, issue => issue.Code == "gpu-length");
+}
+
+[Fact(DisplayName = "FUNC-BD04: missing compatibility specifications skip unavailable checks")]
+public void FuncBd04_MissingSpecifications_SkipUnavailableChecks()
+{
+var parts = Build(
+    Part(ComponentType.CPU, new TechnicalSpec()),
+    Part(ComponentType.Mainboard, new TechnicalSpec { Socket = "AM5" }),
+    Part(ComponentType.GPU, new TechnicalSpec { LengthMm = 320 }),
+    Part(ComponentType.Case, new TechnicalSpec()));
+
+var issues = PcBuildCompatibilityChecker.Check(parts);
+
+Assert.DoesNotContain(issues, issue => issue.Code is "socket" or "case-form-factor" or "gpu-length");
 }
 
 private static IReadOnlyDictionary<ComponentType, Product> Build(params Product[] products) =>
