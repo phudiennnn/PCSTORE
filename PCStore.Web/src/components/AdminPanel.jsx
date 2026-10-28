@@ -218,6 +218,7 @@ export default function AdminPanel({ onClose, staffName = 'Nhân viên', current
     quantity: '', unitCost: '', supplier: '', note: '', actualStock: '',
   });
   const [inventoryThresholds, setInventoryThresholds] = useState({});
+  const [inventoryHistory, setInventoryHistory] = useState(null);
   const [inventorySearch, setInventorySearch] = useState('');
   const [inventoryCategoryFilter, setInventoryCategoryFilter] = useState('ALL');
   const [inventoryStatusFilter, setInventoryStatusFilter] = useState('ALL');
@@ -1249,6 +1250,28 @@ export default function AdminPanel({ onClose, staffName = 'Nhân viên', current
     }
   };
 
+  const handleDownloadBackup = async backup => {
+    setBackupAction(`download:${backup.id}`);
+    try {
+      const file = await adminService.downloadBackup(backup.id);
+      downloadBlob(file, `${backup.id}.dump`);
+      setMsg(`Đã tải bản sao lưu ${backup.id}.`);
+    } catch (error) {
+      setMsg(getApiErrorMessage(error, 'Không thể tải tệp sao lưu.'));
+    } finally {
+      setBackupAction('');
+    }
+  };
+
+  const handleLoadInventoryHistory = async item => {
+    try {
+      const history = await adminService.getInventoryHistory(item.id);
+      setInventoryHistory({ item, entries: history });
+    } catch (error) {
+      setMsg(getApiErrorMessage(error, 'Không thể tải lịch sử tồn kho.'));
+    }
+  };
+
   const handleRestoreBackup = async () => {
     if (!restoreTarget || restoreConfirmation !== 'PHUC HOI') return;
 
@@ -2018,6 +2041,7 @@ export default function AdminPanel({ onClose, staffName = 'Nhân viên', current
                         </div>
 
                         <div className="flex gap-2">
+                          <button type="button" onClick={() => handleLoadInventoryHistory(item)} className="flex items-center gap-1 rounded border border-cyan-800 px-3 py-2 text-[11px] font-bold text-cyan-300 hover:bg-cyan-950"><FileClock className="h-3.5 w-3.5" />Lịch sử</button>
                           <button type="button" onClick={() => openInventoryAction('receive', item)} className="flex items-center gap-1 rounded bg-emerald-950 px-3 py-2 text-[11px] font-bold text-emerald-300 hover:bg-emerald-900"><Plus className="h-3.5 w-3.5" />Nhập kho</button>
                           <button type="button" onClick={() => openInventoryAction('adjust', item)} className="flex items-center gap-1 rounded border border-amber-900 px-3 py-2 text-[11px] font-bold text-amber-300 hover:bg-amber-950"><Pencil className="h-3.5 w-3.5" />Điều chỉnh tồn</button>
                         </div>
@@ -2067,6 +2091,33 @@ export default function AdminPanel({ onClose, staffName = 'Nhân viên', current
                           <button type="submit" className="rounded bg-cyan-400 px-4 py-2 font-bold text-slate-950">{inventoryAction.type === 'receive' ? 'Xác nhận nhập kho' : 'Xác nhận điều chỉnh'}</button>
                         </div>
                       </form>
+                    </div>
+                  )}
+
+                  {inventoryHistory && (
+                    <div className="fixed inset-0 z-[75] flex items-center justify-center bg-black/70 p-3">
+                      <section role="dialog" aria-modal="true" aria-labelledby="inventory-history-title" className="max-h-[85vh] w-full max-w-3xl overflow-auto rounded-2xl border border-cyan-800 bg-[#0c1424] p-5 text-slate-100 shadow-2xl">
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <h3 id="inventory-history-title" className="font-black text-cyan-300">Lịch sử tồn kho</h3>
+                            <p className="mt-1 text-[11px] text-slate-400">{inventoryHistory.item.name} · {inventoryHistory.item.sku}</p>
+                          </div>
+                          <button type="button" onClick={() => setInventoryHistory(null)} aria-label="Đóng lịch sử tồn kho" className="rounded border border-cyan-900 p-2 text-slate-300"><X className="h-4 w-4" /></button>
+                        </div>
+                        <div className="mt-4 space-y-2">
+                          {inventoryHistory.entries.length === 0 && <p className="rounded-lg bg-[#111a2e] p-3 text-xs text-slate-400">Chưa có biến động tồn kho được ghi nhận.</p>}
+                          {inventoryHistory.entries.map(entry => (
+                            <article key={entry.id} className="rounded-lg border border-cyan-950 bg-[#111a2e] p-3">
+                              <div className="flex flex-wrap justify-between gap-2 text-xs">
+                                <strong className="text-cyan-200">{entry.action}</strong>
+                                <span className="text-slate-400">{new Date(entry.timestamp).toLocaleString('vi-VN')}</span>
+                              </div>
+                              <p className="mt-1 text-[10px] text-slate-400">{entry.performedBy || 'Hệ thống'}</p>
+                              <pre className="mt-2 whitespace-pre-wrap break-words text-[11px] text-slate-200">{JSON.stringify(readAuditDetails(entry.details), null, 2)}</pre>
+                            </article>
+                          ))}
+                        </div>
+                      </section>
                     </div>
                   )}
                 </section>
@@ -2962,6 +3013,14 @@ export default function AdminPanel({ onClose, staffName = 'Nhân viên', current
                             </div>
                             <div className="flex shrink-0 items-center gap-2">
                               <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-semibold text-slate-600">{formatFileSize(backup.sizeBytes)}</span>
+                              <button
+                                type="button"
+                                onClick={() => handleDownloadBackup(backup)}
+                                disabled={Boolean(backupAction)}
+                                className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-[10px] font-bold text-blue-700 hover:border-blue-300 hover:bg-blue-50 disabled:opacity-50"
+                              >
+                                {backupAction === `download:${backup.id}` ? 'Đang tải...' : 'Tải file'}
+                              </button>
                               <button
                                 type="button"
                                 onClick={() => { setRestoreTarget(backup); setRestoreConfirmation(''); setRestoreDialogOpen(true); }}

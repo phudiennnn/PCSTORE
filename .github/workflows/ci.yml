@@ -1,0 +1,60 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - "**"
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Build, test, and build container images
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Restore
+        run: dotnet restore PCSTORE.slnx
+
+      - name: Build
+        run: dotnet build PCSTORE.slnx --configuration Release --no-restore
+
+      - name: Test
+        run: dotnet test PCSTORE.slnx --configuration Release --no-build --logger "trx;LogFileName=test-results.trx" --results-directory PCStore.Tests/TestResults
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: PCStore.Tests/TestResults/*.trx
+          if-no-files-found: warn
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: PCStore.Web/package-lock.json
+
+      - name: Install frontend dependencies
+        run: npm ci
+        working-directory: PCStore.Web
+
+      - name: Lint frontend
+        run: npm run lint
+        working-directory: PCStore.Web
+
+      - name: Build API image
+        run: docker build --tag pcstore-api:${{ github.sha }} .
+
+      - name: Build frontend image
+        run: docker build --file PCStore.Web/Dockerfile --tag pcstore-web:${{ github.sha }} .

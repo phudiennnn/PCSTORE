@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Package, Users, Headphones, Loader2, X, Printer, Eye, CheckCircle2, ClipboardList, Truck, Cpu, FolderTree, Search, RefreshCw, CircleCheck, Wallet, ArrowUpRight, BriefcaseBusiness, ArrowLeft, UserRound, KeyRound, LogOut } from 'lucide-react';
 import { staffService, orderService, getApiErrorMessage } from '../services/api';
 import OrderDocumentPreview from './OrderDocumentPreview';
@@ -38,19 +38,26 @@ export default function StaffPanel({ onClose, staffName = 'Nhân viên', current
   const [updatingOrderId, setUpdatingOrderId] = useState(null);
   const [statusDrafts, setStatusDrafts] = useState({});
   const [orderSearch, setOrderSearch] = useState('');
+  const [ticketSearch, setTicketSearch] = useState('');
+  const [ticketStatusFilter, setTicketStatusFilter] = useState('');
+  const [ticketFilters, setTicketFilters] = useState({ search: '', status: '' });
+  const [updatingTicketId, setUpdatingTicketId] = useState(null);
 
-  const loadTab = async (t) => {
+  const loadTab = useCallback(async (t) => {
     setLoading(true);
     try {
       if (t === 'orders') setOrders(await orderService.getAllOrders('Pending'));
       if (t === 'warehouse') setOrders(await orderService.getAllOrders('Confirmed'));
       if (t === 'delivery') setOrders(await orderService.getAllOrders('Shipping'));
-      if (t === 'support') setTickets(await staffService.getSupportTickets());
+      if (t === 'support') setTickets(await staffService.getSupportTickets({
+        search: ticketFilters.search || undefined,
+        status: ticketFilters.status || undefined,
+      }));
     } catch (error) { setMsg(getApiErrorMessage(error, 'Không thể tải dữ liệu khu vực làm việc.')); }
     finally { setLoading(false); }
-  };
+  }, [ticketFilters]);
 
-  useEffect(() => { const run = async () => { await loadTab(tab); }; run(); }, [tab]);
+  useEffect(() => { const run = async () => { await loadTab(tab); }; run(); }, [tab, loadTab]);
 
   useEffect(() => {
     if (!['orders', 'warehouse', 'delivery'].includes(tab)) return undefined;
@@ -164,6 +171,22 @@ export default function StaffPanel({ onClose, staffName = 'Nhân viên', current
 
   const handlePrint = (orderId, documentType) => {
     setDocumentOrder({ orderId, documentType });
+  };
+
+  const handleUpdateTicket = async (ticket, status) => {
+    setUpdatingTicketId(ticket.id);
+    try {
+      await staffService.updateSupportTicket(ticket.id, status);
+      setTickets(await staffService.getSupportTickets({
+        search: ticketFilters.search || undefined,
+        status: ticketFilters.status || undefined,
+      }));
+      setMsg(`Đã cập nhật trạng thái yêu cầu hỗ trợ #${ticket.id}.`);
+    } catch (error) {
+      setMsg(getApiErrorMessage(error, 'Không thể cập nhật yêu cầu hỗ trợ.'));
+    } finally {
+      setUpdatingTicketId(null);
+    }
   };
 
   const visibleTabs = TABS.filter(tabItem => {
@@ -530,13 +553,62 @@ export default function StaffPanel({ onClose, staffName = 'Nhân viên', current
 
               {tab === 'support' && (
                 <div className="space-y-3">
+                  <form
+                    onSubmit={event => {
+                      event.preventDefault();
+                      setTicketFilters({
+                        search: ticketSearch.trim(),
+                        status: ticketStatusFilter,
+                      });
+                    }}
+                    className="flex flex-wrap gap-2"
+                  >
+                    <input
+                      value={ticketSearch}
+                      onChange={event => setTicketSearch(event.target.value)}
+                      maxLength={200}
+                      placeholder="Tìm tên, email, tiêu đề hoặc nội dung"
+                      className="min-w-[220px] flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-800"
+                    />
+                    <select
+                      value={ticketStatusFilter}
+                      onChange={event => setTicketStatusFilter(event.target.value)}
+                      className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-800"
+                    >
+                      <option value="">Tất cả trạng thái</option>
+                      <option value="Open">Mới</option>
+                      <option value="InProgress">Đang xử lý</option>
+                      <option value="Resolved">Đã giải quyết</option>
+                      <option value="Closed">Đã đóng</option>
+                    </select>
+                    <button type="submit" className="rounded-xl bg-blue-600 px-4 py-2 text-xs font-bold text-white">
+                      Tìm yêu cầu
+                    </button>
+                  </form>
+                  {tickets.length === 0 && <p className="rounded-xl bg-white p-4 text-xs text-slate-500">Không có yêu cầu hỗ trợ phù hợp.</p>}
                   {tickets.map(t => (
-                    <div key={t.id} className="flex items-center justify-between gap-3 rounded-3xl border border-slate-200 bg-white p-4 shadow-[0_10px_24px_rgba(148,163,184,0.08)]">
-                      <div>
+                    <div key={t.id} className="flex flex-wrap items-start justify-between gap-3 rounded-3xl border border-slate-200 bg-white p-4 shadow-[0_10px_24px_rgba(148,163,184,0.08)]">
+                      <div className="min-w-[200px] flex-1">
                         <p className="text-sm font-bold text-slate-800">{t.subject}</p>
-                        <p className="mt-1 text-xs text-slate-500">{t.customer}</p>
+                        <p className="mt-1 text-xs text-slate-500">{t.customer} · {t.customerEmail}</p>
+                        <p className="mt-2 whitespace-pre-wrap text-xs text-slate-700">{t.description}</p>
+                        <p className="mt-2 text-[10px] text-slate-400">Tạo lúc {new Date(t.createdAt).toLocaleString('vi-VN')}</p>
                       </div>
-                      <span className={`rounded-full px-3 py-1 text-[10px] font-bold ${t.status === 'Open' ? 'bg-amber-50 text-amber-700' : 'bg-emerald-50 text-emerald-700'}`}>{t.status}</span>
+                      <div className="flex items-center gap-2">
+                        <span className={`rounded-full px-3 py-1 text-[10px] font-bold ${t.status === 'Open' ? 'bg-amber-50 text-amber-700' : t.status === 'Resolved' || t.status === 'Closed' ? 'bg-emerald-50 text-emerald-700' : 'bg-blue-50 text-blue-700'}`}>{t.status}</span>
+                        <select
+                          value={t.status}
+                          onChange={event => handleUpdateTicket(t, event.target.value)}
+                          disabled={updatingTicketId === t.id}
+                          aria-label={`Trạng thái ticket ${t.id}`}
+                          className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-700 disabled:opacity-50"
+                        >
+                          <option value="Open">Mới</option>
+                          <option value="InProgress">Đang xử lý</option>
+                          <option value="Resolved">Đã giải quyết</option>
+                          <option value="Closed">Đã đóng</option>
+                        </select>
+                      </div>
                     </div>
                   ))}
                 </div>

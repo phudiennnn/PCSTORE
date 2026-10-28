@@ -25,6 +25,7 @@ public class AppDbContext : DbContext
     public DbSet<SystemSetting> SystemSettings => Set<SystemSetting>();
     public DbSet<Voucher> Vouchers => Set<Voucher>();
     public DbSet<RolePermission> RolePermissions => Set<RolePermission>();
+    public DbSet<SupportTicket> SupportTickets => Set<SupportTicket>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -48,6 +49,21 @@ public class AppDbContext : DbContext
             b.Property(permission => permission.Action).IsRequired().HasMaxLength(20);
             b.Property(permission => permission.UpdatedBy).HasMaxLength(150);
             b.HasIndex(permission => new { permission.Role, permission.Module, permission.Action }).IsUnique();
+        });
+
+        modelBuilder.Entity<SupportTicket>(b =>
+        {
+            b.HasKey(ticket => ticket.Id);
+            b.Property(ticket => ticket.CustomerName).IsRequired().HasMaxLength(100);
+            b.Property(ticket => ticket.CustomerEmail).IsRequired().HasMaxLength(150);
+            b.Property(ticket => ticket.Subject).IsRequired().HasMaxLength(200);
+            b.Property(ticket => ticket.Description).IsRequired().HasMaxLength(2000);
+            b.Property(ticket => ticket.Status).IsRequired().HasMaxLength(20).HasDefaultValue("Open");
+            b.HasIndex(ticket => new { ticket.Status, ticket.CreatedAt });
+            b.HasOne<User>()
+                .WithMany()
+                .HasForeignKey(ticket => ticket.CustomerUserId)
+                .OnDelete(DeleteBehavior.SetNull);
         });
 
         modelBuilder.Entity<AuditLog>(b =>

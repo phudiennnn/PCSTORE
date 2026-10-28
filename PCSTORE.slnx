@@ -2,4 +2,5 @@
   <Project Path="PCStore.API/PCStore.API.csproj" />
   <Project Path="PCStore.Core/PCStore.Core.csproj" />
   <Project Path="PCStore.Infrastructure/PCStore.Infrastructure.csproj" />
+  <Project Path="PCStore.Tests/PCStore.Tests.csproj" />
 </Solution>

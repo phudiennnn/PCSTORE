@@ -1,0 +1,47 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-PCStoreDb}
+      POSTGRES_USER: ${POSTGRES_USER:-pcstore}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+    ports:
+      - "127.0.0.1:5433:5432"
+    volumes:
+      - pcstore-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      ConnectionStrings__DefaultConnection: "Host=db;Port=5432;Database=${POSTGRES_DB:-PCStoreDb};Username=${POSTGRES_USER:-pcstore};Password=${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}"
+    ports:
+      - "127.0.0.1:5170:8080"
+    volumes:
+      - pcstore-backup-data:/app/App_Data/Backups
+      - pcstore-data-protection:/home/app/.aspnet/DataProtection-Keys
+
+  frontend:
+    build:
+      context: .
+      dockerfile: PCStore.Web/Dockerfile
+    depends_on:
+      api:
+        condition: service_started
+    ports:
+      - "127.0.0.1:3000:80"
+
+volumes:
+  pcstore-postgres-data:
+  pcstore-backup-data:
+  pcstore-data-protection:

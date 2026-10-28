@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Bot, Loader2, MessageCircle, Send, Sparkles, X } from 'lucide-react';
-import { aiService, getApiErrorMessage } from '../services/api';
+import { aiService, getApiErrorMessage, supportService } from '../services/api';
 
 const welcomeMessage = {
   role: 'assistant',
@@ -12,6 +12,10 @@ export default function AIChatBox() {
   const [messages, setMessages] = useState([welcomeMessage]);
   const [input, setInput] = useState('');
   const [isSending, setIsSending] = useState(false);
+  const [isSubmittingTicket, setIsSubmittingTicket] = useState(false);
+  const [ticketSubject, setTicketSubject] = useState('');
+  const [ticketDescription, setTicketDescription] = useState('');
+  const [ticketMessage, setTicketMessage] = useState('');
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
 
@@ -45,6 +49,25 @@ export default function AIChatBox() {
     } finally {
       setIsSending(false);
       inputRef.current?.focus();
+    }
+  };
+
+  const submitTicket = async event => {
+    event.preventDefault();
+    setIsSubmittingTicket(true);
+    setTicketMessage('');
+    try {
+      const ticket = await supportService.createTicket({
+        subject: ticketSubject.trim(),
+        description: ticketDescription.trim(),
+      });
+      setTicketMessage(`Đã gửi yêu cầu hỗ trợ #${ticket.id}. Nhân viên sẽ tiếp nhận sớm.`);
+      setTicketSubject('');
+      setTicketDescription('');
+    } catch (error) {
+      setTicketMessage(getApiErrorMessage(error, 'Không thể gửi yêu cầu hỗ trợ.'));
+    } finally {
+      setIsSubmittingTicket(false);
     }
   };
 
@@ -112,6 +135,42 @@ export default function AIChatBox() {
             <div ref={messagesEndRef} />
           </div>
 
+          {isOpen && (
+            <details className="border-t border-slate-200 bg-white px-3 py-2">
+              <summary className="cursor-pointer text-[11px] font-semibold text-blue-700">Gửi yêu cầu cho nhân viên hỗ trợ</summary>
+              <form onSubmit={submitTicket} className="mt-2 space-y-2">
+                <label className="sr-only" htmlFor="support-ticket-subject">Tiêu đề yêu cầu hỗ trợ</label>
+                <input
+                  id="support-ticket-subject"
+                  value={ticketSubject}
+                  onChange={event => setTicketSubject(event.target.value)}
+                  maxLength={200}
+                  required
+                  placeholder="Tiêu đề"
+                  className="w-full rounded-lg border border-slate-200 px-2 py-1.5 text-xs text-slate-800"
+                />
+                <label className="sr-only" htmlFor="support-ticket-description">Nội dung yêu cầu hỗ trợ</label>
+                <textarea
+                  id="support-ticket-description"
+                  value={ticketDescription}
+                  onChange={event => setTicketDescription(event.target.value)}
+                  maxLength={2000}
+                  required
+                  rows={3}
+                  placeholder="Mô tả vấn đề cần hỗ trợ"
+                  className="w-full rounded-lg border border-slate-200 px-2 py-1.5 text-xs text-slate-800"
+                />
+                {ticketMessage && <p role="status" className="text-[10px] text-slate-600">{ticketMessage}</p>}
+                <button
+                  type="submit"
+                  disabled={isSubmittingTicket || !ticketSubject.trim() || !ticketDescription.trim()}
+                  className="rounded-lg bg-slate-800 px-3 py-1.5 text-[10px] font-bold text-white disabled:opacity-50"
+                >
+                  {isSubmittingTicket ? 'Đang gửi...' : 'Gửi yêu cầu'}
+                </button>
+              </form>
+            </details>
+          )}
           <form onSubmit={sendMessage} className="border-t border-slate-200 bg-white p-3">
             <label htmlFor="pcstore-ai-chat-input" className="sr-only">Nhập tin nhắn cho trợ lý AI</label>
             <div className="flex items-end gap-2">
