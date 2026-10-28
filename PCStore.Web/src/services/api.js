@@ -116,13 +116,7 @@ export const staffService = {
     getCustomerHistory: async (customerId) => (await apiClient.get(`/staff/customers/${customerId}`)).data,
     checkPcCompatibility: async (productIds, config = {}) =>
         (await apiClient.post('/staff/compatibility-check', { productIds }, config)).data,
-    getSupportTickets: async filters => (await apiClient.get('/staff/support-tickets', { params: filters })).data,
-    updateSupportTicket: async (id, status) =>
-        (await apiClient.put(`/staff/support-tickets/${id}`, { status })).data,
-};
-
-export const supportService = {
-    createTicket: async data => (await apiClient.post('/support-tickets', data)).data,
+    getSupportTickets: async () => (await apiClient.get('/staff/support-tickets')).data,
 };
 
 export const pcBuildService = {
@@ -176,17 +170,11 @@ export const adminService = {
         (await apiClient.put('/admin/system-configuration', configuration)).data,
     getBackups: async () => (await apiClient.get('/admin/backups', { timeout: 0 })).data,
     createBackup: async () => (await apiClient.post('/admin/backups', {}, { timeout: 0 })).data,
-    downloadBackup: async backupId => (await apiClient.get(
-        `/admin/backups/${encodeURIComponent(backupId)}/download`,
-        { responseType: 'blob', timeout: 0 },
-    )).data,
     restoreBackup: async backupId =>
         (await apiClient.post(`/admin/backups/${encodeURIComponent(backupId)}/restore`, {}, { timeout: 0 })).data,
     getRolePermissions: async role => (await apiClient.get(`/admin/role-permissions/${role}`)).data,
     updateRolePermissions: async (role, data) => (await apiClient.put(`/admin/role-permissions/${role}`, data)).data,
     getAuditLogs: async filters => (await apiClient.get('/admin/audit-logs', { params: filters })).data,
-    getInventoryHistory: async productId =>
-        (await apiClient.get(`/admin/inventory/${productId}/history`)).data,
     exportAuditLogs: async (filters, format) => (await apiClient.get('/admin/audit-logs/export', {
         params: { ...filters, format },
         responseType: 'blob',
