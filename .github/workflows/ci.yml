@@ -29,7 +29,7 @@ jobs:
         run: dotnet build PCSTORE.slnx --configuration Release --no-restore
 
       - name: Test
-        run: dotnet test PCSTORE.slnx --configuration Release --no-build --logger "trx;LogFileName=test-results.trx"
+        run: dotnet test PCSTORE.slnx --configuration Release --no-build --logger "trx;LogFileName=test-results.trx" --results-directory PCStore.Tests/TestResults
 
       - name: Upload test results
         if: always()
@@ -38,6 +38,20 @@ jobs:
           name: test-results
           path: PCStore.Tests/TestResults/*.trx
           if-no-files-found: warn
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: PCStore.Web/package-lock.json
+
+      - name: Install frontend dependencies
+        run: npm ci
+        working-directory: PCStore.Web
+
+      - name: Lint frontend
+        run: npm run lint
+        working-directory: PCStore.Web
 
       - name: Build API image
         run: docker build --tag pcstore-api:${{ github.sha }} .

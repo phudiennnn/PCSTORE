@@ -8,4 +8,5 @@
 **/.env
 **/.env.*
 **/appsettings.Development.json
+**/App_Data/Backups/
 TestResults/

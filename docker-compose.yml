@@ -27,6 +27,9 @@ services:
       ConnectionStrings__DefaultConnection: "Host=db;Port=5432;Database=${POSTGRES_DB:-PCStoreDb};Username=${POSTGRES_USER:-pcstore};Password=${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}"
     ports:
       - "127.0.0.1:5170:8080"
+    volumes:
+      - pcstore-backup-data:/app/App_Data/Backups
+      - pcstore-data-protection:/home/app/.aspnet/DataProtection-Keys
 
   frontend:
     build:
@@ -40,3 +43,5 @@ services:
 
 volumes:
   pcstore-postgres-data:
+  pcstore-backup-data:
+  pcstore-data-protection:

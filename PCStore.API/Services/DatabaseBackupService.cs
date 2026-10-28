@@ -94,6 +94,14 @@ public sealed class DatabaseBackupService
             .ToList();
     }
 
+    public FileStream OpenBackupRead(string backupId)
+    {
+        var path = GetBackupPath(backupId);
+        if (!File.Exists(path))
+            throw new FileNotFoundException("Không tìm thấy bản sao lưu cần tải xuống.");
+        return new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, 81920, FileOptions.Asynchronous | FileOptions.SequentialScan);
+    }
+
     public async Task<DatabaseBackupInfo> CreateBackupAsync(CancellationToken cancellationToken)
     {
         await _operationLock.WaitAsync(cancellationToken);

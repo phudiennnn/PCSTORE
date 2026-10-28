@@ -33,7 +33,12 @@ Node.js 22, and PostgreSQL 16.
    `http://localhost:5170`.
 
 The database data is stored in the `pcstore-postgres-data` Docker volume and
-survives container restarts. Stop the services without deleting that data:
+survives container restarts. Backup files and ASP.NET Core Data Protection keys
+are stored in separate named volumes. The API image includes PostgreSQL client
+tools for backup and restore. These local volumes are not a production backup
+or key-management strategy.
+
+Stop the services without deleting stored data:
 
 ```powershell
 docker compose down
@@ -60,6 +65,10 @@ dotnet test .\PCSTORE.slnx --configuration Release
 
 The xUnit project contains unit tests for the PC build compatibility rules.
 These tests run without starting the API or connecting to a database.
+The application also provides administrator-only audit log search/export,
+inventory history, voucher management, and database backup download/restore.
+Customers can submit support requests from the AI chat panel; staff can search
+and update ticket status in the support workspace.
 
 To run the React frontend directly:
 
@@ -75,13 +84,14 @@ The frontend currently expects the API at `http://localhost:5170`.
 
 GitHub Actions runs on pushes to branches and pull requests targeting `main`.
 The workflow restores and builds the .NET solution, runs xUnit tests, uploads
-the test result artifact, and builds the API and frontend Docker images. It
-does not publish images or deploy the application.
+the test result artifact, lints the frontend, and builds the API and frontend
+Docker images. It does not publish images or deploy the application.
 
 ## Current validation notes
 
-- The compatibility test suite currently contains 5 tests.
-- Package restore reports `NU1903` for `Microsoft.OpenApi` 2.0.0. Review and
-  update this dependency separately before treating the dependency audit as clean.
+- The xUnit suite currently contains 10 tests: 5 compatibility characterization
+  cases and 5 support-ticket status normalization cases.
+- Local `dotnet list package --vulnerable --include-transitive` reports no
+  vulnerable NuGet packages after updating `Microsoft.OpenApi`.
 - Frontend production builds may report that a JavaScript bundle exceeds Vite's
   500 kB advisory threshold; this is a warning, not a failed build.
