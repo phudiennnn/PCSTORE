@@ -258,6 +258,12 @@ try
     {
         // A first-run database has not created SystemSettings yet.
     }
+    catch (CryptographicException exception)
+    {
+        app.Logger.LogWarning(
+            exception,
+            "Could not decrypt the saved database configuration; using the configured bootstrap connection. Reconfigure the saved database settings.");
+    }
 }
 catch (NpgsqlException exception)
 {
