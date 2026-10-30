@@ -125,7 +125,7 @@ public sealed class AiOrchestrator : IAiOrchestrator
         };
         var reply = new StringBuilder();
         await foreach (var chunk in StreamRequestAsync(request, cancellationToken))
-            reply.Append(chunk);
+            reply.Append(chunk.Text);
         var text = reply.ToString().Trim();
         if (text.Length == 0)
             throw new AllProvidersFailedException("Không có nhà cung cấp AI nào xử lý được yêu cầu.", ["AI không trả về nội dung."]);
@@ -133,6 +133,14 @@ public sealed class AiOrchestrator : IAiOrchestrator
     }
 
     public async IAsyncEnumerable<string> ExplainSelectionAsync(
+        string selectedPartsJson,
+        [EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        await foreach (var token in StreamExplanationAsync(selectedPartsJson, cancellationToken))
+            yield return token.Text;
+    }
+
+    public async IAsyncEnumerable<AiStreamToken> StreamExplanationAsync(
         string selectedPartsJson,
         [EnumeratorCancellation] CancellationToken cancellationToken)
     {
@@ -149,11 +157,11 @@ public sealed class AiOrchestrator : IAiOrchestrator
             Temperature = settings.ExplainSelection.Temperature,
             MaxOutputTokens = settings.ExplainSelection.MaxOutputTokens,
         };
-        await foreach (var chunk in StreamRequestAsync(request, cancellationToken))
-            yield return chunk;
+        await foreach (var token in StreamRequestAsync(request, cancellationToken))
+            yield return token;
     }
 
-    private async IAsyncEnumerable<string> StreamRequestAsync(
+    private async IAsyncEnumerable<AiStreamToken> StreamRequestAsync(
         AiGenerationRequest request,
         [EnumeratorCancellation] CancellationToken cancellationToken)
     {
@@ -183,7 +191,7 @@ public sealed class AiOrchestrator : IAiOrchestrator
                     throw new AiStreamInterruptedException("Câu trả lời bị gián đoạn sau khi đã bắt đầu. Vui lòng thử lại.");
 
                 streamed = true;
-                yield return chunk.Text ?? string.Empty;
+                yield return new AiStreamToken(chunk.Text ?? string.Empty, chunk.Provider ?? string.Empty);
             }
 
             if (streamed)
@@ -219,7 +227,7 @@ public sealed class AiOrchestrator : IAiOrchestrator
                 throw new AiStreamInterruptedException("Câu trả lời bị gián đoạn sau khi đã bắt đầu. Vui lòng thử lại.");
 
             geminiStreamed = true;
-            yield return chunk.Text ?? string.Empty;
+            yield return new AiStreamToken(chunk.Text ?? string.Empty, chunk.Provider ?? AiProviderNames.Gemini);
         }
 
         if (!geminiStreamed)
@@ -298,7 +306,7 @@ public sealed class AiOrchestrator : IAiOrchestrator
                 continue;
 
             producedToken = true;
-            yield return StreamChunk.Token(text);
+            yield return StreamChunk.Token(text, provider.ProviderName);
         }
     }
 
@@ -466,12 +474,12 @@ public sealed class AiOrchestrator : IAiOrchestrator
         ErrorAfterToken,
     }
 
-    private readonly record struct StreamChunk(StreamChunkKind Kind, string? Text, string? Reason)
+    private readonly record struct StreamChunk(StreamChunkKind Kind, string? Text, string? Reason, string? Provider)
     {
-        public static StreamChunk Token(string text) => new(StreamChunkKind.Token, text, null);
+        public static StreamChunk Token(string text, string provider) => new(StreamChunkKind.Token, text, null, provider);
 
-        public static StreamChunk BeforeToken(string reason) => new(StreamChunkKind.ErrorBeforeToken, null, reason);
+        public static StreamChunk BeforeToken(string reason) => new(StreamChunkKind.ErrorBeforeToken, null, reason, null);
 
-        public static StreamChunk AfterToken(string reason) => new(StreamChunkKind.ErrorAfterToken, null, reason);
+        public static StreamChunk AfterToken(string reason) => new(StreamChunkKind.ErrorAfterToken, null, reason, null);
     }
 }

@@ -25,6 +25,8 @@ public interface IAiOrchestrator
 
     IAsyncEnumerable<string> ExplainSelectionAsync(string selectedPartsJson, CancellationToken cancellationToken);
 
+    IAsyncEnumerable<AiStreamToken> StreamExplanationAsync(string selectedPartsJson, CancellationToken cancellationToken);
+
     Task<string> GenerateCustomerReplyAsync(string customerMessage, CancellationToken cancellationToken);
 }
 
@@ -50,6 +52,8 @@ public interface IAiSettingsService
 public interface IAiRequestLogService
 {
     Task WriteAsync(AiRequestLogEntry entry, CancellationToken cancellationToken);
+
+    Task<AiUsageSummary> ReadRecentSummaryAsync(int lookbackHours, CancellationToken cancellationToken);
 }
 
 /// <summary>Ghép prompt theo phiên bản cố định.</summary>

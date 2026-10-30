@@ -304,6 +304,9 @@ public class AiOrchestratorTests
             Entries.Add(entry);
             return Task.CompletedTask;
         }
+
+        public Task<AiUsageSummary> ReadRecentSummaryAsync(int lookbackHours, CancellationToken cancellationToken) =>
+            Task.FromResult(new AiUsageSummary { LookbackHours = lookbackHours });
     }
 
     private sealed class FakePrompts : IPromptTemplateProvider

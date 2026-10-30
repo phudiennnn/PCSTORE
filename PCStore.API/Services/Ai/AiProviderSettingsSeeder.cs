@@ -72,6 +72,7 @@ public static class AiProviderSettingsSeeder
         }
 
         await ReplaceRetiredGeminiModelAsync(context, options, logger, cancellationToken);
+        await MoveLegacyKeyToGeminiAsync(context, options, dataProtectionProvider, logger, cancellationToken);
         await context.SaveChangesAsync(cancellationToken);
     }
 
@@ -103,6 +104,56 @@ public static class AiProviderSettingsSeeder
             legacyModel.Value = replacement;
             logger.LogInformation("Đã đổi model AI cũ đã ngừng hoạt động. Chat dùng model này.");
         }
+    }
+
+    private static async Task MoveLegacyKeyToGeminiAsync(
+        AppDbContext context,
+        AiOptions options,
+        IDataProtectionProvider dataProtectionProvider,
+        ILogger logger,
+        CancellationToken cancellationToken)
+    {
+        var gemini = await context.AiProviderSettings
+            .FirstOrDefaultAsync(row => row.ProviderName == AiProviderNames.Gemini, cancellationToken);
+        if (gemini is null)
+            return;
+
+        var hasReadableKey = false;
+        if (!string.IsNullOrWhiteSpace(gemini.ProtectedApiKey))
+        {
+            try
+            {
+                var current = dataProtectionProvider.CreateProtector(options.DataProtectionPurpose).Unprotect(gemini.ProtectedApiKey);
+                hasReadableKey = !string.IsNullOrWhiteSpace(current);
+            }
+            catch (CryptographicException)
+            {
+                hasReadableKey = false;
+            }
+        }
+
+        if (!hasReadableKey)
+        {
+            var legacy = await ReadLegacyAsync(context, options, dataProtectionProvider, logger, cancellationToken);
+            if (string.IsNullOrWhiteSpace(legacy.ApiKey))
+                return;
+
+            gemini.ProtectedApiKey = dataProtectionProvider.CreateProtector(options.DataProtectionPurpose).Protect(legacy.ApiKey);
+            gemini.UpdatedAt = DateTime.UtcNow;
+            logger.LogInformation("Đã chuyển API Key từ cấu hình phụ sang Gemini dự phòng. Giá trị key không được ghi log.");
+        }
+
+        var legacyRows = await context.SystemSettings
+            .Where(setting => setting.Key == options.LegacySettingKeys.ApiKey || setting.Key == options.LegacySettingKeys.Model)
+            .ToListAsync(cancellationToken);
+        var cleared = false;
+        foreach (var row in legacyRows.Where(row => !string.IsNullOrEmpty(row.Value)))
+        {
+            row.Value = string.Empty;
+            cleared = true;
+        }
+        if (cleared)
+            logger.LogInformation("Đã để trống model và API Key trong cấu hình phụ.");
     }
 
     private static async Task<LegacyAiValues> ReadLegacyAsync(

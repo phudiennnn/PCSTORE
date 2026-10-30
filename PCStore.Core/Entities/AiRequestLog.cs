@@ -15,5 +15,9 @@ public class AiRequestLog
 
     public string? FailoverReason { get; set; }
 
+    public int? TimeToFirstTokenMilliseconds { get; set; }
+
+    public bool FaqHit { get; set; }
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 }

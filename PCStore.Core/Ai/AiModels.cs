@@ -43,6 +43,9 @@ public sealed class AiJsonValidationResult
     public IReadOnlyList<string> Errors { get; init; } = [];
 }
 
+/// <summary>Một đoạn chữ đã stream, kèm nhà cung cấp vừa sinh ra đoạn đó.</summary>
+public readonly record struct AiStreamToken(string Text, string ProviderName);
+
 /// <summary>Dòng sẽ ghi vào AiRequestLog.</summary>
 public sealed class AiRequestLogEntry
 {
@@ -51,6 +54,30 @@ public sealed class AiRequestLogEntry
     public required int LatencyMilliseconds { get; init; }
     public required bool IsSuccess { get; init; }
     public string? FailoverReason { get; init; }
+    public int? TimeToFirstTokenMilliseconds { get; init; }
+    public bool FaqHit { get; init; }
+}
+
+/// <summary>Số liệu AI trong một khoảng giờ gần nhất.</summary>
+public sealed class AiUsageSummary
+{
+    public int LookbackHours { get; init; }
+    public int RequestCount { get; init; }
+    public int SuccessCount { get; init; }
+    public int FaqHitCount { get; init; }
+    public int FailoverCount { get; init; }
+    public int? AverageLatencyMilliseconds { get; init; }
+    public int? AverageTimeToFirstTokenMilliseconds { get; init; }
+    public IReadOnlyList<AiProviderUsage> Providers { get; init; } = [];
+}
+
+/// <summary>Số liệu của một nhà cung cấp trong khoảng thống kê.</summary>
+public sealed class AiProviderUsage
+{
+    public required string Provider { get; init; }
+    public int RequestCount { get; init; }
+    public int SuccessCount { get; init; }
+    public int? AverageLatencyMilliseconds { get; init; }
 }
 
 /// <summary>Tham số tác vụ trích ý định, lấy từ cấu hình.</summary>
