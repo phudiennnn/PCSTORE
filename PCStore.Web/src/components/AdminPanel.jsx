@@ -235,7 +235,7 @@ export default function AdminPanel({ onClose, staffName = 'Nhân viên', current
   const [settings, setSettings] = useState([]);
   const [systemConfiguration, setSystemConfiguration] = useState({
     database: { host: '', port: 5432, database: '', username: '', password: '' },
-    ai: { apiKey: '', model: 'gemini-2.0-flash', temperature: 0.7, maxTokens: 1024, ragTopK: 5, ragThreshold: 0.65 },
+    ai: { apiKey: '', model: 'gemini-3.8-flash', temperature: 0.7, maxTokens: 1024, ragTopK: 5, ragThreshold: 0.65 },
   });
   const [systemConfigurationStatus, setSystemConfigurationStatus] = useState(null);
   const [configurationHealth, setConfigurationHealth] = useState({ database: null, ai: null });
