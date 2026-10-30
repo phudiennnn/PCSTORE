@@ -27,6 +27,7 @@ public class AppDbContext : DbContext
     public DbSet<RolePermission> RolePermissions => Set<RolePermission>();
     public DbSet<AiProviderSetting> AiProviderSettings => Set<AiProviderSetting>();
     public DbSet<AiRequestLog> AiRequestLogs => Set<AiRequestLog>();
+    public DbSet<Faq> Faqs => Set<Faq>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -264,7 +265,20 @@ public class AppDbContext : DbContext
             b.Property(log => log.Provider).IsRequired().HasMaxLength(20);
             b.Property(log => log.Intent).IsRequired().HasMaxLength(40);
             b.Property(log => log.FailoverReason).HasMaxLength(300);
+            b.Property(log => log.FaqHit).HasDefaultValue(false);
             b.HasIndex(log => log.CreatedAt);
+        });
+
+        modelBuilder.Entity<Faq>(faq =>
+        {
+            faq.ToTable("Faq");
+            faq.HasKey(item => item.Id);
+            faq.Property(item => item.Category).IsRequired().HasMaxLength(80);
+            faq.Property(item => item.Question).IsRequired().HasMaxLength(300);
+            faq.Property(item => item.Answer).IsRequired().HasMaxLength(2000);
+            faq.Property(item => item.Keywords).IsRequired().HasMaxLength(800);
+            faq.Property(item => item.IsActive).HasDefaultValue(true);
+            faq.HasIndex(item => new { item.Category, item.IsActive });
         });
     }
 }

@@ -8,6 +8,8 @@ using PCStore.Core.Enums;
 using PCStore.Infrastructure.Data;
 using PCStore.API.Services;
 using PCStore.API.Services.Ai;
+using PCStore.API.Services.Faq;
+using PCStore.API.Services.Chat;
 using PCStore.API.DTOs;
 using System.Net;
 using System.Net.Mail;
@@ -26,6 +28,8 @@ builder.Services.AddDataProtection();
 builder.Services.AddSignalR();
 builder.Services.AddHttpClient();
 builder.Services.AddPcStoreAi(builder.Configuration);
+builder.Services.AddPcStoreFaq(builder.Configuration);
+builder.Services.AddPcStoreChat(builder.Configuration);
 builder.Services.AddSingleton<OrderStatusEmailQueue>();
 builder.Services.AddHostedService(serviceProvider => serviceProvider.GetRequiredService<OrderStatusEmailQueue>());
 builder.Services.AddSingleton<DatabaseBackupService>();
@@ -45,6 +49,7 @@ var app = builder.Build();
 
 // ĐẶT UseCors NGAY ĐẦU TIÊN SAU KHI BUILD APP
 app.UseCors("AllowAll");
+app.UseRateLimiter();
 app.MapHub<OrderNotificationsHub>("/hubs/orders");
 app.Use(async (httpContext, next) =>
 {
@@ -216,7 +221,7 @@ app.Use(async (httpContext, next) =>
     }
 
     var (module, action) = requirement.Value;
-    if (module == "auditlogs" && user.Role != UserRole.Admin)
+    if (module is "auditlogs" or "faqs" or "aisettings" && user.Role != UserRole.Admin)
     {
         httpContext.Response.StatusCode = StatusCodes.Status403Forbidden;
         return;
@@ -430,8 +435,27 @@ using (var scope = app.Services.CreateScope())
                 "CreatedAt" timestamp with time zone NOT NULL DEFAULT NOW()
             );
             CREATE INDEX IF NOT EXISTS "IX_AiRequestLog_CreatedAt" ON "AiRequestLog" ("CreatedAt");
+            ALTER TABLE "AiRequestLog" ADD COLUMN IF NOT EXISTS "TimeToFirstTokenMilliseconds" integer;
+            ALTER TABLE "AiRequestLog" ADD COLUMN IF NOT EXISTS "FaqHit" boolean NOT NULL DEFAULT FALSE;
+            CREATE TABLE IF NOT EXISTS "Faq" (
+                "Id" serial PRIMARY KEY,
+                "Category" varchar(80) NOT NULL,
+                "Question" varchar(300) NOT NULL,
+                "Answer" varchar(2000) NOT NULL,
+                "Keywords" varchar(800) NOT NULL,
+                "Priority" integer NOT NULL DEFAULT 0,
+                "IsActive" boolean NOT NULL DEFAULT TRUE,
+                "UpdatedAt" timestamp with time zone NOT NULL DEFAULT NOW()
+            );
+            CREATE INDEX IF NOT EXISTS "IX_Faq_Category_IsActive" ON "Faq" ("Category", "IsActive");
             """);
         await DbInitializer.SeedAsync(context);
+        await FaqSeeder.SeedAsync(
+            context,
+            scope.ServiceProvider.GetRequiredService<IOptions<FaqOptions>>().Value,
+            app.Environment.ContentRootPath,
+            scope.ServiceProvider.GetRequiredService<ILoggerFactory>().CreateLogger(nameof(FaqSeeder)),
+            CancellationToken.None);
         await AiProviderSettingsSeeder.SeedAsync(
             context,
             scope.ServiceProvider.GetRequiredService<IOptions<AiOptions>>().Value,
@@ -2639,6 +2663,7 @@ app.MapPost("/api/ai/build-recommendation", async (
 
 app.MapPost("/api/ai/consult", async (
     IAiOrchestrator orchestrator,
+    IFaqService faqService,
     AiConsultDto dto,
     CancellationToken cancellationToken) =>
 {
@@ -2648,6 +2673,13 @@ app.MapPost("/api/ai/consult", async (
 
     try
     {
+        var faqMatch = await faqService.FindMatchingFaqAsync(msg, cancellationToken);
+        if (faqMatch is not null)
+            return Results.Ok(new { response = faqMatch.Answer, suggestedProducts = Array.Empty<int>() });
+        var unfilledNotice = await faqService.FindUnfilledNoticeAsync(msg, cancellationToken);
+        if (unfilledNotice is not null)
+            return Results.Ok(new { response = unfilledNotice, suggestedProducts = Array.Empty<int>() });
+
         var response = await orchestrator.GenerateCustomerReplyAsync(msg, cancellationToken);
         return Results.Ok(new { response, suggestedProducts = Array.Empty<int>() });
     }
@@ -2660,6 +2692,9 @@ app.MapPost("/api/ai/consult", async (
         return Results.Problem(detail: exception.Message, statusCode: StatusCodes.Status502BadGateway);
     }
 });
+
+app.MapAdminContentEndpoints();
+app.MapChatStream();
 
 app.MapGet("/api/ai/upgrade-suggestions", async (AppDbContext context, string productIds) =>
 {
@@ -6630,9 +6665,9 @@ static string? ValidateAiConfiguration(AiConfigurationRequest request)
 {
     if (request.ApiKey?.Length > 2048)
         return "API Key vượt quá độ dài cho phép.";
-    if (string.IsNullOrWhiteSpace(request.Model)
-        || request.Model.Length > 100
-        || !request.Model.All(character => char.IsAsciiLetterOrDigit(character) || character is '-' or '_' or '.'))
+    if (!string.IsNullOrWhiteSpace(request.Model)
+        && (request.Model.Length > 100
+            || !request.Model.All(character => char.IsAsciiLetterOrDigit(character) || character is '-' or '_' or '.')))
         return "Tên model chỉ được chứa chữ, số, dấu chấm, gạch ngang hoặc gạch dưới.";
     if (request.Temperature is < 0 or > 2)
         return "Temperature phải nằm trong khoảng 0 đến 2.";
@@ -6711,6 +6746,11 @@ static (string Module, string Action)? GetRolePermissionRequirement(string path,
     var normalizedPath = path.TrimEnd('/');
     if (normalizedPath.StartsWith("/api/admin/audit-logs", StringComparison.OrdinalIgnoreCase))
         return ("auditlogs", "view");
+    if (normalizedPath.StartsWith("/api/admin/csrf-token", StringComparison.OrdinalIgnoreCase)
+        || normalizedPath.StartsWith("/api/admin/faqs", StringComparison.OrdinalIgnoreCase))
+        return ("faqs", GetCrudAction(normalizedPath, method));
+    if (normalizedPath.StartsWith("/api/admin/ai-settings", StringComparison.OrdinalIgnoreCase))
+        return ("aisettings", method.Equals("GET", StringComparison.OrdinalIgnoreCase) ? "view" : "update");
     if (normalizedPath.StartsWith("/api/admin/role-permissions", StringComparison.OrdinalIgnoreCase))
         return ( "permissions", method.Equals("GET", StringComparison.OrdinalIgnoreCase) ? "view" : "update" );
 

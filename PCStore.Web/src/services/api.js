@@ -9,9 +9,32 @@ const apiClient = axios.create({
   timeout: 30000,
 });
 
-apiClient.interceptors.request.use(config => {
+let adminCsrfToken = '';
+let adminCsrfHeaderName = 'X-CSRF-Token';
+let adminCsrfRequest = null;
+
+const needsAdminCsrf = config => {
+    const method = (config.method || 'get').toLowerCase();
+    const url = config.url || '';
+    return method !== 'get' && (url.includes('/admin/faqs') || url.includes('/admin/ai-settings'));
+};
+
+export const ensureAdminCsrfToken = async () => {
+    if (adminCsrfToken) return adminCsrfToken;
+    if (!adminCsrfRequest) {
+        adminCsrfRequest = apiClient.get('/admin/csrf-token').then(response => {
+            adminCsrfToken = response.data.token || '';
+            adminCsrfHeaderName = response.data.headerName || 'X-CSRF-Token';
+            return adminCsrfToken;
+        }).finally(() => { adminCsrfRequest = null; });
+    }
+    return adminCsrfRequest;
+};
+
+apiClient.interceptors.request.use(async config => {
     const accessToken = localStorage.getItem('pcstore_access_token');
     if (accessToken) config.headers.Authorization = `Bearer ${accessToken}`;
+    if (needsAdminCsrf(config)) config.headers[adminCsrfHeaderName] = await ensureAdminCsrfToken();
     return config;
 });
 
@@ -179,6 +202,18 @@ export const adminService = {
         params: { ...filters, format },
         responseType: 'blob',
     })).data,
+    getFaqs: async params => (await apiClient.get('/admin/faqs', { params })).data,
+    exportFaqs: async () => (await apiClient.get('/admin/faqs/export')).data,
+    createFaq: async data => (await apiClient.post('/admin/faqs', data)).data,
+    updateFaq: async (id, data) => (await apiClient.put(`/admin/faqs/${id}`, data)).data,
+    setFaqActive: async (id, isActive) => (await apiClient.patch(`/admin/faqs/${id}/active`, { isActive })).data,
+    deleteFaq: async id => (await apiClient.delete(`/admin/faqs/${id}`)).data,
+    importFaqs: async items => (await apiClient.post('/admin/faqs/import', items)).data,
+    getAiProviderSettings: async () => (await apiClient.get('/admin/ai-settings')).data,
+    saveOllamaSettings: async data => (await apiClient.put('/admin/ai-settings/ollama', data)).data,
+    saveGeminiSettings: async data => (await apiClient.put('/admin/ai-settings/gemini', data)).data,
+    testOllamaConnection: async () => (await apiClient.post('/admin/ai-settings/ollama/test', {})).data,
+    testGeminiConnection: async () => (await apiClient.post('/admin/ai-settings/gemini/test', {})).data,
 };
 
 export default apiClient;

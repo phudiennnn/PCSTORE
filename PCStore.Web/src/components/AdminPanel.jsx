@@ -1,6 +1,8 @@
 import { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
-import { ArrowLeft, BarChart3, Users, Package, FolderTree, Settings, Database, Loader2, X, Save, Search, Pencil, Eye, EyeOff, Tag, ImagePlus, Plus, Minus, ClipboardList, KeyRound, UserPlus, ShieldCheck, FileClock, Download, RefreshCw, UserRound } from 'lucide-react';
+import { ArrowLeft, BarChart3, Users, Package, FolderTree, Settings, Database, Loader2, X, Save, Search, Pencil, Eye, EyeOff, Tag, ImagePlus, Plus, Minus, ClipboardList, KeyRound, UserPlus, ShieldCheck, FileClock, Download, RefreshCw, UserRound, CircleHelp } from 'lucide-react';
 import { adminService, orderService, getApiErrorMessage } from '../services/api';
+import FaqAdminSection from './FaqAdminSection';
+import SettingsWorkspace from './SettingsWorkspace';
 import OrderDocumentPreview from './OrderDocumentPreview';
 import CustomerLookup from './CustomerLookup';
 import './AdminPanel.css';
@@ -19,6 +21,7 @@ const TABS = [
   { id: 'permissions', label: 'Phân quyền', icon: ShieldCheck },
   { id: 'audit-logs', label: 'Nhật ký hoạt động', icon: FileClock },
   { id: 'settings', label: 'Cấu hình', icon: Settings },
+  { id: 'faqs', label: 'Quản lý FAQ', icon: CircleHelp, adminOnly: true },
   { id: 'backup', label: 'Sao lưu', icon: Database },
 ];
 
@@ -188,6 +191,7 @@ function AdminEmptyState({ title, description, icon: Icon = Package }) {
 
 export default function AdminPanel({ onClose, staffName = 'Nhân viên', currentUserId, catalogOnly = false, permissions = [], isAdministrator = false }) {
   const [tab, setTab] = useState(catalogOnly ? 'products' : 'stats');
+  const [sectionRevision, setSectionRevision] = useState(0);
   const [loading, setLoading] = useState(false);
   const [stats, setStats] = useState(null);
   const [reportRevision, setReportRevision] = useState(0);
@@ -298,6 +302,12 @@ export default function AdminPanel({ onClose, staffName = 'Nhân viên', current
       reportLoadStartedAt.current = null;
       setLoading(false);
       setMsg('Ngày bắt đầu không được lớn hơn ngày kết thúc.');
+      return;
+    }
+    if (t === 'faqs') {
+      setSectionRevision(value => value + 1);
+      setLoading(false);
+      setMsg('');
       return;
     }
     setLoading(true);
@@ -1189,7 +1199,10 @@ export default function AdminPanel({ onClose, staffName = 'Nhân viên', current
   const handleSaveSystemConfiguration = async () => {
     setConfigurationAction('save');
     try {
-      const result = await adminService.updateSystemConfiguration(systemConfiguration);
+      const result = await adminService.updateSystemConfiguration({
+        ...systemConfiguration,
+        ai: { ...systemConfiguration.ai, apiKey: '', model: '' },
+      });
       const configuration = await adminService.getSystemConfiguration();
       setSystemConfigurationStatus(configuration);
       setSystemConfiguration(current => ({
@@ -1308,6 +1321,7 @@ export default function AdminPanel({ onClose, staffName = 'Nhân viên', current
 
           <nav className="min-h-0 flex-1 space-y-1.5 overflow-y-auto">
             {TABS.filter(item => {
+              if (item.adminOnly && !isAdministrator) return false;
               if (catalogOnly && !['products', 'inventory', 'promotions', 'categories', 'orders', 'order-requests'].includes(item.id)) return false;
               const moduleByTab = {
                 stats: 'reports', orders: 'orders', 'order-requests': 'orders', customers: 'customers',
@@ -2721,173 +2735,27 @@ export default function AdminPanel({ onClose, staffName = 'Nhân viên', current
                 </section>
               )}
 
+              {tab === 'faqs' && <FaqAdminSection refreshKey={sectionRevision} />}
+
               {tab === 'settings' && (
-                <div className="space-y-5">
-                  <section className="rounded-2xl border border-cyan-900 bg-[#0a1220] p-4 sm:p-5">
-                    <div className="mb-4 flex items-center gap-3">
-                      <Database className="h-5 w-5 text-cyan-300" />
-                      <div>
-                        <h3 className="font-bold text-white">Kết nối PostgreSQL</h3>
-                        <p className="text-[11px] text-slate-400">Thông tin bí mật được mã hóa; để trống mật khẩu để giữ mật khẩu đã lưu.</p>
-                      </div>
-                    </div>
-                    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                      {[
-                        ['Host', 'host', 'text'],
-                        ['Port', 'port', 'number'],
-                        ['Tên database', 'database', 'text'],
-                        ['Username', 'username', 'text'],
-                        ['Mật khẩu', 'password', 'password'],
-                      ].map(([label, field, type]) => (
-                        <label key={field} className="space-y-1 text-xs font-semibold text-slate-300">
-                          <span>{label}</span>
-                          <input
-                            type={type}
-                            min={type === 'number' ? 1 : undefined}
-                            max={type === 'number' ? 65535 : undefined}
-                            value={systemConfiguration.database[field]}
-                            onChange={event => updateSystemConfigurationField(
-                              'database',
-                              field,
-                              type === 'number' ? Number(event.target.value) : event.target.value,
-                            )}
-                            placeholder={field === 'password' && systemConfigurationStatus?.databasePasswordConfigured ? 'Đã lưu (để trống để giữ nguyên)' : ''}
-                            className="w-full rounded-lg border border-cyan-950 bg-[#111a2e] px-3 py-2 text-sm text-white outline-none focus:border-cyan-500"
-                          />
-                        </label>
-                      ))}
-                    </div>
-                    {systemConfigurationStatus?.databaseConnectionChangePendingRestart && (
-                      <p className="mt-3 rounded-lg border border-amber-800 bg-amber-950/30 p-3 text-xs text-amber-200">
-                        Thay đổi database đang chờ áp dụng. Cần khởi động lại API; kết nối hiện tại vẫn đang hoạt động.
-                      </p>
-                    )}
-                    {configurationHealth.database && (
-                      <p className={`mt-3 rounded-lg border p-3 text-xs ${healthStatusClass(configurationHealth.database)}`}>
-                        {configurationHealth.database.message}
-                        {configurationHealth.database.latencyMs != null && ` (${Math.round(configurationHealth.database.latencyMs)} ms)`}
-                      </p>
-                    )}
-                    <button
-                      type="button"
-                      onClick={handleTestSystemDatabase}
-                      disabled={Boolean(configurationAction)}
-                      className="mt-4 rounded-lg border border-cyan-700 px-4 py-2 text-xs font-bold text-cyan-200 hover:bg-cyan-950 disabled:opacity-50"
-                    >
-                      {configurationAction === 'database' ? 'Đang kiểm tra...' : 'Kiểm tra kết nối database'}
-                    </button>
-                  </section>
-
-                  <section className="rounded-2xl border border-cyan-900 bg-[#0a1220] p-4 sm:p-5">
-                    <div className="mb-4 flex items-center gap-3">
-                      <KeyRound className="h-5 w-5 text-cyan-300" />
-                      <div>
-                        <h3 className="font-bold text-white">Nhà cung cấp AI và tham số RAG</h3>
-                        <p className="text-[11px] text-slate-400">API Key không được trả về giao diện; nhập key mới nếu muốn thay key đã lưu.</p>
-                      </div>
-                    </div>
-                    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                      <label className="space-y-1 text-xs font-semibold text-slate-300 sm:col-span-2">
-                        <span>LLM API Key {systemConfigurationStatus?.aiApiKeyConfigured ? '(đã cấu hình)' : '(chưa cấu hình)'}</span>
-                        <input
-                          type="password"
-                          autoComplete="new-password"
-                          value={systemConfiguration.ai.apiKey}
-                          onChange={event => updateSystemConfigurationField('ai', 'apiKey', event.target.value)}
-                          placeholder={systemConfigurationStatus?.aiApiKeyConfigured ? 'Để trống để giữ key đã lưu' : 'Nhập API Key'}
-                          className="w-full rounded-lg border border-cyan-950 bg-[#111a2e] px-3 py-2 text-sm text-white outline-none focus:border-cyan-500"
-                        />
-                      </label>
-                      {[
-                        ['Model', 'model', 'text', undefined, undefined],
-                        ['Temperature', 'temperature', 'number', 0, 2],
-                        ['Số token tối đa', 'maxTokens', 'number', 1, 8192],
-                        ['RAG Top-K', 'ragTopK', 'number', 1, 100],
-                        ['RAG Threshold', 'ragThreshold', 'number', 0, 1],
-                      ].map(([label, field, type, min, max]) => (
-                        <label key={field} className="space-y-1 text-xs font-semibold text-slate-300">
-                          <span>{label}</span>
-                          <input
-                            type={type}
-                            min={min}
-                            max={max}
-                            step={field === 'temperature' || field === 'ragThreshold' ? 0.05 : 1}
-                            value={systemConfiguration.ai[field]}
-                            onChange={event => updateSystemConfigurationField(
-                              'ai',
-                              field,
-                              type === 'number' ? Number(event.target.value) : event.target.value,
-                            )}
-                            className="w-full rounded-lg border border-cyan-950 bg-[#111a2e] px-3 py-2 text-sm text-white outline-none focus:border-cyan-500"
-                          />
-                        </label>
-                      ))}
-                    </div>
-                    {configurationHealth.ai && (
-                      <p className={`mt-3 rounded-lg border p-3 text-xs ${healthStatusClass(configurationHealth.ai)}`}>
-                        {configurationHealth.ai.message}
-                        {configurationHealth.ai.latencyMs != null && ` (${Math.round(configurationHealth.ai.latencyMs)} ms)`}
-                      </p>
-                    )}
-                    <button
-                      type="button"
-                      onClick={handleTestSystemAi}
-                      disabled={Boolean(configurationAction)}
-                      className="mt-4 rounded-lg border border-cyan-700 px-4 py-2 text-xs font-bold text-cyan-200 hover:bg-cyan-950 disabled:opacity-50"
-                    >
-                      {configurationAction === 'ai' ? 'Đang kiểm tra...' : 'Kiểm tra API AI'}
-                    </button>
-                    <p className="mt-3 text-[10px] leading-relaxed text-slate-500">
-                      Các tham số RAG được lưu để cấu hình truy xuất; thao tác lưu áp dụng ngay cho tư vấn AI, còn đổi database cần khởi động lại API.
-                    </p>
-                  </section>
-
-                  <div className="flex flex-wrap justify-end gap-2">
-                    <button
-                      type="button"
-                      onClick={handleCancelSystemConfiguration}
-                      disabled={Boolean(configurationAction)}
-                      className="rounded-lg border border-slate-700 px-4 py-2 text-xs font-bold text-slate-300 disabled:opacity-50"
-                    >
-                      Hủy thay đổi
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleSaveSystemConfiguration}
-                      disabled={Boolean(configurationAction)}
-                      className="flex items-center gap-2 rounded-lg bg-cyan-400 px-4 py-2 text-xs font-bold text-slate-950 disabled:opacity-50"
-                    >
-                      {configurationAction === 'save' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                      Lưu cấu hình hệ thống
-                    </button>
-                  </div>
-
-                  {settings.length > 0 && (
-                    <details className="rounded-xl border border-cyan-950 p-4">
-                      <summary className="cursor-pointer text-sm font-bold text-slate-300">Cấu hình phụ</summary>
-                      <div className="mt-4 space-y-3">
-                        {settings.map((setting, index) => (
-                          <div key={setting.key} className="flex items-center gap-3">
-                            <label htmlFor={`legacy-setting-${index}`} className="w-32 break-all text-xs font-bold text-slate-400">{setting.key}</label>
-                            <input
-                              id={`legacy-setting-${index}`}
-                              value={setting.value}
-                              onChange={event => {
-                                const updated = [...settings];
-                                updated[index] = { ...setting, value: event.target.value };
-                                setSettings(updated);
-                              }}
-                              className="flex-1 rounded border border-cyan-950 bg-[#111a2e] px-3 py-1.5 text-sm"
-                            />
-                          </div>
-                        ))}
-                        <button onClick={handleSaveSettings} className="flex items-center gap-2 rounded-xl bg-cyan-400 px-4 py-2 font-bold text-slate-950">
-                          <Save className="h-4 w-4" /> Lưu cấu hình phụ
-                        </button>
-                      </div>
-                    </details>
-                  )}
-                </div>
+                <SettingsWorkspace
+                  systemConfiguration={systemConfiguration}
+                  updateField={updateSystemConfigurationField}
+                  status={systemConfigurationStatus}
+                  health={configurationHealth}
+                  action={configurationAction}
+                  onTestDatabase={handleTestSystemDatabase}
+                  onTestLegacyAi={handleTestSystemAi}
+                  onCancel={handleCancelSystemConfiguration}
+                  onSaveSystem={handleSaveSystemConfiguration}
+                  legacySettings={settings.filter(setting => setting.key !== 'system.ai.api-key' && setting.key !== 'system.ai.model')}
+                  onChangeLegacy={(index, value) => {
+                    const updated = [...settings];
+                    updated[index] = { ...settings[index], value };
+                    setSettings(updated);
+                  }}
+                  onSaveLegacy={handleSaveSettings}
+                />
               )}
 
               {tab === 'backup' && (
