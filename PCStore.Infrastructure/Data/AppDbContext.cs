@@ -25,6 +25,8 @@ public class AppDbContext : DbContext
     public DbSet<SystemSetting> SystemSettings => Set<SystemSetting>();
     public DbSet<Voucher> Vouchers => Set<Voucher>();
     public DbSet<RolePermission> RolePermissions => Set<RolePermission>();
+    public DbSet<AiProviderSetting> AiProviderSettings => Set<AiProviderSetting>();
+    public DbSet<AiRequestLog> AiRequestLogs => Set<AiRequestLog>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -237,6 +239,32 @@ public class AppDbContext : DbContext
             b.HasKey(s => s.Id);
             b.HasIndex(s => s.Key).IsUnique();
             b.Property(s => s.Key).IsRequired().HasMaxLength(100);
+        });
+
+        modelBuilder.Entity<AiProviderSetting>(b =>
+        {
+            b.ToTable("AiProviderSettings");
+            b.HasKey(setting => setting.Id);
+            b.Property(setting => setting.ProviderName).IsRequired().HasMaxLength(20);
+            b.Property(setting => setting.BaseUrl).IsRequired().HasMaxLength(300);
+            b.Property(setting => setting.ModelName).IsRequired().HasMaxLength(120);
+            b.Property(setting => setting.FallbackModelNames).IsRequired().HasDefaultValue("[]");
+            b.Property(setting => setting.ApiVersion).HasMaxLength(30);
+            b.Property(setting => setting.KeepAlive).HasMaxLength(20);
+            b.Property(setting => setting.Temperature).HasPrecision(4, 2);
+            b.Property(setting => setting.IsEnabled).HasDefaultValue(true);
+            b.Property(setting => setting.IsMaintenanceMode).HasDefaultValue(false);
+            b.HasIndex(setting => setting.ProviderName).IsUnique();
+        });
+
+        modelBuilder.Entity<AiRequestLog>(b =>
+        {
+            b.ToTable("AiRequestLog");
+            b.HasKey(log => log.Id);
+            b.Property(log => log.Provider).IsRequired().HasMaxLength(20);
+            b.Property(log => log.Intent).IsRequired().HasMaxLength(40);
+            b.Property(log => log.FailoverReason).HasMaxLength(300);
+            b.HasIndex(log => log.CreatedAt);
         });
     }
 }

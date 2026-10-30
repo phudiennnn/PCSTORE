@@ -1,10 +1,13 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.AspNetCore.DataProtection;
+using Microsoft.Extensions.Options;
+using PCStore.Core.Ai;
 using PCStore.Core.Entities;
 using PCStore.Core.Enums;
 using PCStore.Infrastructure.Data;
 using PCStore.API.Services;
+using PCStore.API.Services.Ai;
 using PCStore.API.DTOs;
 using System.Net;
 using System.Net.Mail;
@@ -22,6 +25,7 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 builder.Services.AddDataProtection();
 builder.Services.AddSignalR();
 builder.Services.AddHttpClient();
+builder.Services.AddPcStoreAi(builder.Configuration);
 builder.Services.AddSingleton<OrderStatusEmailQueue>();
 builder.Services.AddHostedService(serviceProvider => serviceProvider.GetRequiredService<OrderStatusEmailQueue>());
 builder.Services.AddSingleton<DatabaseBackupService>();
@@ -385,7 +389,55 @@ using (var scope = app.Services.CreateScope())
             CREATE INDEX IF NOT EXISTS ""IX_Orders_CreatedAt_Status"" ON ""Orders"" (""CreatedAt"", ""Status"");
             CREATE INDEX IF NOT EXISTS ""IX_PcBuilds_CreatedAt_Purpose"" ON ""PcBuilds"" (""CreatedAt"", ""Purpose"");
         ");
+        await context.Database.ExecuteSqlRawAsync("""
+            CREATE TABLE IF NOT EXISTS "AiProviderSettings" (
+                "Id" serial PRIMARY KEY,
+                "ProviderName" varchar(20) NOT NULL,
+                "BaseUrl" varchar(300) NOT NULL,
+                "ModelName" varchar(120) NOT NULL,
+                "FallbackModelNames" text NOT NULL DEFAULT '[]',
+                "ApiVersion" varchar(30),
+                "ProtectedApiKey" text,
+                "KeepAlive" varchar(20),
+                "NumCtx" integer,
+                "TimeoutSeconds" integer NOT NULL,
+                "ConnectTimeoutSeconds" integer NOT NULL,
+                "Temperature" numeric(4,2),
+                "MaxOutputTokens" integer,
+                "IsEnabled" boolean NOT NULL DEFAULT TRUE,
+                "IsMaintenanceMode" boolean NOT NULL DEFAULT FALSE,
+                "UpdatedAt" timestamp with time zone NOT NULL DEFAULT NOW()
+            );
+            CREATE UNIQUE INDEX IF NOT EXISTS "IX_AiProviderSettings_ProviderName" ON "AiProviderSettings" ("ProviderName");
+            ALTER TABLE "AiProviderSettings" ADD COLUMN IF NOT EXISTS "ConnectTimeoutSeconds" integer NOT NULL DEFAULT 3;
+            ALTER TABLE "AiProviderSettings" ADD COLUMN IF NOT EXISTS "FallbackModelNames" text NOT NULL DEFAULT '[]';
+            ALTER TABLE "AiProviderSettings" ADD COLUMN IF NOT EXISTS "ApiVersion" varchar(30);
+            ALTER TABLE "AiProviderSettings" ADD COLUMN IF NOT EXISTS "ProtectedApiKey" text;
+            ALTER TABLE "AiProviderSettings" ADD COLUMN IF NOT EXISTS "KeepAlive" varchar(20);
+            ALTER TABLE "AiProviderSettings" ADD COLUMN IF NOT EXISTS "NumCtx" integer;
+            ALTER TABLE "AiProviderSettings" ADD COLUMN IF NOT EXISTS "Temperature" numeric(4,2);
+            ALTER TABLE "AiProviderSettings" ADD COLUMN IF NOT EXISTS "MaxOutputTokens" integer;
+            ALTER TABLE "AiProviderSettings" ADD COLUMN IF NOT EXISTS "IsEnabled" boolean NOT NULL DEFAULT TRUE;
+            ALTER TABLE "AiProviderSettings" ADD COLUMN IF NOT EXISTS "IsMaintenanceMode" boolean NOT NULL DEFAULT FALSE;
+            ALTER TABLE "AiProviderSettings" ADD COLUMN IF NOT EXISTS "UpdatedAt" timestamp with time zone NOT NULL DEFAULT NOW();
+            CREATE TABLE IF NOT EXISTS "AiRequestLog" (
+                "Id" bigserial PRIMARY KEY,
+                "Provider" varchar(20) NOT NULL,
+                "Intent" varchar(40) NOT NULL,
+                "LatencyMilliseconds" integer NOT NULL,
+                "IsSuccess" boolean NOT NULL,
+                "FailoverReason" varchar(300),
+                "CreatedAt" timestamp with time zone NOT NULL DEFAULT NOW()
+            );
+            CREATE INDEX IF NOT EXISTS "IX_AiRequestLog_CreatedAt" ON "AiRequestLog" ("CreatedAt");
+            """);
         await DbInitializer.SeedAsync(context);
+        await AiProviderSettingsSeeder.SeedAsync(
+            context,
+            scope.ServiceProvider.GetRequiredService<IOptions<AiOptions>>().Value,
+            scope.ServiceProvider.GetRequiredService<IDataProtectionProvider>(),
+            scope.ServiceProvider.GetRequiredService<ILoggerFactory>().CreateLogger(nameof(AiProviderSettingsSeeder)),
+            CancellationToken.None);
         await InitializeCategoryAndBrandCatalogAsync(context);
         await InitializeRolePermissionsAsync(context);
         Console.WriteLine("--> [DATABASE] Seed Data hoàn tất!");
@@ -2586,114 +2638,26 @@ app.MapPost("/api/ai/build-recommendation", async (
     .Produces(StatusCodes.Status400BadRequest);
 
 app.MapPost("/api/ai/consult", async (
-    AppDbContext context,
-    IDataProtectionProvider dataProtectionProvider,
-    IHttpClientFactory httpClientFactory,
+    IAiOrchestrator orchestrator,
     AiConsultDto dto,
     CancellationToken cancellationToken) =>
 {
     var msg = dto.Message?.Trim() ?? "";
     if (msg.Length is 0 or > 4000)
         return Results.BadRequest(new { message = "Nội dung tư vấn phải có từ 1 đến 4000 ký tự." });
-    var products = await context.Products.Include(p => p.Category)
-        .Where(p => p.IsActive && p.Category != null && p.Category.IsActive)
-        .ToListAsync(cancellationToken);
 
-    var productList = string.Join("\n", products.Select(p => $"- {p.Category?.Name}: {p.Name} (Giá: {p.Price:N0}đ, ID: {p.Id})"));
-    
-    var prompt = $@"Bạn là nhân viên tư vấn nhiệt tình của PC STORE. Hãy trò chuyện và trả lời câu hỏi của khách hàng một cách tự nhiên.
-Câu nói/yêu cầu của khách hàng: ""{msg}""
-
-Danh sách linh kiện hiện có tại cửa hàng (chỉ dùng để tham khảo khi khách nhờ tư vấn cấu hình):
-{productList}
-
-Quy tắc bắt buộc:
-1. Nếu khách hàng chỉ chào hỏi (ví dụ: xin chào, hi, alo) hoặc hỏi chuyện phiếm, hãy chào lại thân thiện và hỏi xem họ cần tư vấn mua PC/linh kiện gì. TUYỆT ĐỐI KHÔNG tự động đưa ra danh sách cấu hình nếu khách chưa yêu cầu.
-2. Nếu khách hàng nhờ tư vấn cấu hình PC hoặc hỏi về linh kiện, hãy dựa vào danh sách trên để gợi ý, trình bày rõ ràng và tính tổng tiền.
-3. Không bao giờ gợi ý các linh kiện không có trong danh sách cửa hàng.";
-
-    var aiSettings = await context.SystemSettings.AsNoTracking()
-        .Where(setting => setting.Key.StartsWith("system.ai."))
-        .ToDictionaryAsync(setting => setting.Key, setting => setting.Value, cancellationToken);
-    if (!aiSettings.TryGetValue("system.ai.api-key", out var protectedApiKey)
-        || string.IsNullOrWhiteSpace(protectedApiKey))
-        return Results.Problem(
-            detail: "Quản trị viên chưa cấu hình API Key AI.",
-            statusCode: StatusCodes.Status503ServiceUnavailable);
-    var protector = dataProtectionProvider.CreateProtector("PCSTORE.API.SystemConfiguration.v1");
-    var apiKey = protector.Unprotect(protectedApiKey);
-    var model = aiSettings.GetValueOrDefault("system.ai.model", "gemini-2.0-flash");
-    var temperature = decimal.TryParse(
-        aiSettings.GetValueOrDefault("system.ai.temperature"),
-        System.Globalization.NumberStyles.Number,
-        System.Globalization.CultureInfo.InvariantCulture,
-        out var configuredTemperature) ? (double)configuredTemperature : 0.7d;
-    var maxTokens = int.TryParse(aiSettings.GetValueOrDefault("system.ai.max-tokens"), out var configuredMaxTokens)
-        ? configuredMaxTokens
-        : 1024;
-    var apiUrl = $"https://generativelanguage.googleapis.com/v1beta/models/{Uri.EscapeDataString(model)}:generateContent";
-
-    var requestBody = new
-    {
-        contents = new[]
-        {
-            new { parts = new[] { new { text = prompt } } }
-        },
-        generationConfig = new
-        {
-            temperature,
-            maxOutputTokens = maxTokens,
-        },
-    };
-
-    using var httpRequest = new HttpRequestMessage(HttpMethod.Post, apiUrl);
-    httpRequest.Headers.TryAddWithoutValidation("x-goog-api-key", apiKey);
-    httpRequest.Content = new StringContent(
-        System.Text.Json.JsonSerializer.Serialize(requestBody),
-        System.Text.Encoding.UTF8,
-        "application/json");
-    using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-    timeout.CancelAfter(TimeSpan.FromSeconds(30));
     try
     {
-        using var httpResponse = await httpClientFactory.CreateClient().SendAsync(httpRequest, timeout.Token);
-        if (!httpResponse.IsSuccessStatusCode)
-            return Results.Problem(
-                detail: $"Nhà cung cấp AI không xử lý được yêu cầu (HTTP {(int)httpResponse.StatusCode}).",
-                statusCode: httpResponse.StatusCode == HttpStatusCode.Unauthorized
-                    ? StatusCodes.Status503ServiceUnavailable
-                    : StatusCodes.Status502BadGateway);
-
-        var responseString = await httpResponse.Content.ReadAsStringAsync(timeout.Token);
-        using var doc = System.Text.Json.JsonDocument.Parse(responseString);
-        if (!doc.RootElement.TryGetProperty("candidates", out var candidates)
-            || candidates.ValueKind != System.Text.Json.JsonValueKind.Array
-            || candidates.GetArrayLength() == 0
-            || candidates[0].ValueKind != System.Text.Json.JsonValueKind.Object
-            || !candidates[0].TryGetProperty("content", out var content)
-            || content.ValueKind != System.Text.Json.JsonValueKind.Object
-            || !content.TryGetProperty("parts", out var parts)
-            || parts.ValueKind != System.Text.Json.JsonValueKind.Array
-            || parts.GetArrayLength() == 0
-            || parts[0].ValueKind != System.Text.Json.JsonValueKind.Object
-            || !parts[0].TryGetProperty("text", out var text))
-            return Results.Problem(detail: "Nhà cung cấp AI không trả về nội dung tư vấn.", statusCode: StatusCodes.Status502BadGateway);
-
-        return Results.Ok(new { response = text.GetString(), suggestedProducts = Array.Empty<int>() });
+        var response = await orchestrator.GenerateCustomerReplyAsync(msg, cancellationToken);
+        return Results.Ok(new { response, suggestedProducts = Array.Empty<int>() });
     }
-    catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+    catch (AllProvidersFailedException exception)
     {
-        return Results.Problem(detail: "Yêu cầu tới AI đã hết thời gian chờ.", statusCode: StatusCodes.Status504GatewayTimeout);
+        return Results.Problem(detail: exception.Message, statusCode: StatusCodes.Status503ServiceUnavailable);
     }
-    catch (HttpRequestException exception)
+    catch (AiStreamInterruptedException exception)
     {
-        app.Logger.LogWarning(exception, "AI consultation provider request failed.");
-        return Results.Problem(detail: "Không thể kết nối tới nhà cung cấp AI.", statusCode: StatusCodes.Status502BadGateway);
-    }
-    catch (System.Text.Json.JsonException exception)
-    {
-        app.Logger.LogWarning(exception, "AI consultation provider returned an invalid response.");
-        return Results.Problem(detail: "Nhà cung cấp AI trả về dữ liệu không hợp lệ.", statusCode: StatusCodes.Status502BadGateway);
+        return Results.Problem(detail: exception.Message, statusCode: StatusCodes.Status502BadGateway);
     }
 });
 
@@ -5477,7 +5441,7 @@ app.MapGet("/api/admin/system-configuration", async Task<IResult> (
         passwordConfigured,
         pendingRestart,
         aiKeyConfigured,
-        values.GetValueOrDefault("system.ai.model", "gemini-2.0-flash"),
+        values.GetValueOrDefault("system.ai.model", "gemini-3.8-flash"),
         ReadDecimal("system.ai.temperature", 0.7m),
         ReadInt("system.ai.max-tokens", 1024),
         ReadInt("system.rag.top-k", 5),
@@ -5672,7 +5636,7 @@ app.MapPut("/api/admin/system-configuration", async Task<IResult> (
 
     var previousAiConfiguration = new
     {
-        model = settings.GetValueOrDefault("system.ai.model")?.Value ?? "gemini-2.0-flash",
+        model = settings.GetValueOrDefault("system.ai.model")?.Value ?? "gemini-3.8-flash",
         temperature = settings.GetValueOrDefault("system.ai.temperature")?.Value ?? "0.7",
         maxTokens = settings.GetValueOrDefault("system.ai.max-tokens")?.Value ?? "1024",
         ragTopK = settings.GetValueOrDefault("system.rag.top-k")?.Value ?? "5",
